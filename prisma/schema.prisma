@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  BOARD
+  MEMBER
+}
+
+enum AnnouncementCategory {
+  EVENTS
+  URGENT
+  OPPORTUNITIES
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MeetingAttendanceStatus {
+  INVITED
+  ATTENDED
+  ABSENT
+}
+
+model User {
+  id             String              @id @default(cuid())
+  name           String
+  email          String              @unique
+  role           Role                @default(MEMBER)
+  points         Int                 @default(0)
+  avatarUrl      String?
+  joinedAt       DateTime            @default(now())
+  isActive       Boolean             @default(true)
+  inviteCode     String?             @unique
+  invitedById    String?
+  invitedBy      User?               @relation("MemberCircle", fields: [invitedById], references: [id])
+  invitedMembers User[]              @relation("MemberCircle")
+  announcements  Announcement[]      @relation("AnnouncementAuthor")
+  rewards        Reward[]
+  sentMessages   Message[]
+  activity       Activity[]
+  approvalsMade  Approval[]          @relation("ApprovalReviewer")
+  meetingInvites MeetingAttendance[]
+  eventRegistrations EventRegistration[]
+}
+
+model Announcement {
+  id          String               @id @default(cuid())
+  title       String
+  content     String
+  category    AnnouncementCategory
+  createdById String
+  createdBy   User                 @relation("AnnouncementAuthor", fields: [createdById], references: [id])
+  createdAt   DateTime             @default(now())
+  publishedAt DateTime?
+  requiresApproval Boolean         @default(true)
+  approval    Approval?
+}
+
+model Event {
+  id          String       @id @default(cuid())
+  title       String
+  description String
+  location    String
+  startsAt    DateTime
+  endsAt      DateTime
+  capacity    Int?
+  approval    Approval?
+  attendees   EventRegistration[]
+  createdAt   DateTime     @default(now())
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String
+  event     Event    @relation(fields: [eventId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  attended  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+}
+
+model Meeting {
+  id          String              @id @default(cuid())
+  title       String
+  agenda      String
+  startsAt    DateTime
+  endsAt      DateTime
+  location    String?
+  meetUrl     String?
+  minutesUrl  String?
+  createdAt   DateTime            @default(now())
+  attendance  MeetingAttendance[]
+}
+
+model MeetingAttendance {
+  id        String                  @id @default(cuid())
+  meetingId String
+  userId    String
+  status    MeetingAttendanceStatus @default(INVITED)
+  meeting   Meeting                 @relation(fields: [meetingId], references: [id])
+  user      User                    @relation(fields: [userId], references: [id])
+
+  @@unique([meetingId, userId])
+}
+
+model Reward {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  points    Int
+  reason    String
+  month     String
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  channel   String
+  message   String
+  createdAt DateTime @default(now())
+}
+
+model Approval {
+  id             String          @id @default(cuid())
+  status         ApprovalStatus  @default(PENDING)
+  type           String
+  announcementId String?         @unique
+  eventId        String?         @unique
+  reviewerId     String?
+  reviewer       User?           @relation("ApprovalReviewer", fields: [reviewerId], references: [id])
+  announcement   Announcement?   @relation(fields: [announcementId], references: [id])
+  event          Event?          @relation(fields: [eventId], references: [id])
+  note           String?
+  createdAt      DateTime        @default(now())
+  reviewedAt     DateTime?
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+}

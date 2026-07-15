@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NGO Youth Club System</title>
+  <style>
+    :root {
+      --bg: #f5f7f2;
+      --text: #17211b;
+      --muted: #66746a;
+      --line: #d9e0d7;
+      --panel: #ffffff;
+      --soft: #eef4eb;
+      --green: #236c4a;
+      --gold: #b7791f;
+      --blue: #2563a8;
+      --red: #b42318;
+      --shadow: 0 18px 60px rgba(21, 52, 39, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      background: #10291f;
+      color: white;
+      padding: 28px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .brand, .nav button, .side-card {
+      border: 0;
+      color: inherit;
+      text-align: left;
+    }
+
+    .brand {
+      background: transparent;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      background: #f7c948;
+      color: #10291f;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+
+    .brand h2, .brand p, h1, h2, h3, p { margin-top: 0; }
+    .brand h2 { margin-bottom: 3px; font-size: 18px; }
+    .brand p, .side-card p { color: #b7c9bd; font-size: 13px; margin-bottom: 0; }
+
+    .nav { display: grid; gap: 8px; }
+    .nav button {
+      border-radius: 8px;
+      background: transparent;
+      color: #dce8df;
+      padding: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .nav button.active, .nav button:hover, .side-card:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: white;
+    }
+
+    .side-card {
+      margin-top: auto;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .main {
+      padding: 28px;
+      display: grid;
+      gap: 22px;
+      align-content: start;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      margin-bottom: 6px;
+      font-size: clamp(30px, 5vw, 54px);
+      letter-spacing: 0;
+    }
+
+    .lead {
+      color: var(--muted);
+      max-width: 780px;
+      line-height: 1.6;
+      margin-bottom: 0;
+    }
+
+    .actions, .tabs, .chips, .inline-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .button, .tab, .chip, .icon {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .button {
+      min-height: 42px;
+      padding: 11px 14px;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .button.primary {
+      background: var(--green);
+      border-color: var(--green);
+      color: white;
+    }
+
+    .tab, .chip {
+      border-radius: 999px;
+      padding: 8px 12px;
+      color: var(--muted);
+    }
+
+    .tab.active, .chip.active {
+      background: var(--text);
+      color: white;
+      border-color: var(--text);
+    }
+
+    .icon {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+    }
+
+    .icon.solid { background: var(--green); border-color: var(--green); color: white; }
+
+    .toast {
+      justify-self: start;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: white;
+      color: #154c36;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .grid, .two, .three { display: grid; gap: 16px; }
+    .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .two { grid-template-columns: 1.2fr 0.8fr; }
+    .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      width: 100%;
+      padding: 18px;
+      text-align: left;
+    }
+
+    .metric-value {
+      font-size: 34px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .card-header {
+      padding: 18px 18px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-title { margin: 0; font-size: 18px; }
+    .card-body { padding: 18px; }
+    .list { display: grid; gap: 12px; }
+
+    .row, .leader-row, .tree-node, .message {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfa;
+      color: inherit;
+      text-align: left;
+    }
+
+    .row {
+      width: 100%;
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .row:hover, .leader-row:hover, .tree-node:hover, .metric:hover {
+      border-color: #a9beb1;
+      background: #f2f8f4;
+    }
+
+    .meta { color: var(--muted); font-size: 13px; line-height: 1.4; display: block; margin-top: 4px; }
+
+    .badge {
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      align-self: start;
+      white-space: nowrap;
+    }
+
+    .green { color: #154c36; background: #dff1e7; }
+    .gold { color: #744c12; background: #fdecc8; }
+    .blue { color: #164f89; background: #dbeafe; }
+    .red { color: var(--red); background: #fee4e2; }
+
+    .leader-row {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .rank {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      background: var(--soft);
+      font-weight: 900;
+    }
+
+    .chat {
+      min-height: 230px;
+      display: grid;
+      align-content: end;
+      gap: 10px;
+      background: #edf5f0;
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+
+    .message {
+      max-width: 82%;
+      padding: 10px 12px;
+      background: white;
+    }
+
+    .message.mine { margin-left: auto; background: #dff1e7; }
+
+    .composer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfa;
+      color: var(--text);
+      padding: 11px 12px;
+    }
+
+    textarea { min-height: 110px; resize: vertical; }
+
+    .tree { display: grid; gap: 12px; margin-top: 16px; }
+    .tree-children { display: grid; gap: 10px; padding-left: 20px; border-left: 2px solid var(--line); }
+    .tree-node {
+      width: 100%;
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .root-node { background: #e6f3eb; }
+    .empty-node { border-style: dashed; }
+
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: rgba(16, 41, 31, 0.52);
+      display: none;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .modal-bg.open { display: grid; }
+
+    .modal {
+      width: min(520px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: white;
+      box-shadow: var(--shadow);
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .modal-header h2 { margin: 0; }
+    label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 800; }
+
+    @media (max-width: 1040px) {
+      .shell { grid-template-columns: 1fr; }
+      .grid, .two, .three { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 720px) {
+      .main { padding: 18px; }
+      .topbar, .row { flex-direction: column; align-items: stretch; }
+      .grid, .two, .three { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <aside class="sidebar">
+      <button class="brand" data-scroll="dashboard">
+        <div class="brand-mark">YC</div>
+        <div>
+          <h2>Youth Club OS</h2>
+          <p>NGO operations system</p>
+        </div>
+      </button>
+
+      <nav class="nav" aria-label="Primary">
+        <button class="active" data-scroll="dashboard">📊 Dashboard</button>
+        <button data-scroll="announcements">📣 Announcements</button>
+        <button data-scroll="meetings">📅 Meetings</button>
+        <button data-scroll="rewards">🏆 Rewards</button>
+        <button data-scroll="chat">💬 Board Chat</button>
+        <button data-scroll="admin">🛡️ Admin</button>
+      </nav>
+
+      <button class="side-card" data-modal="member">
+        <p class="eyebrow">Member access</p>
+        <h3>Members can add members</h3>
+        <p>Each new person stays connected to the member who brought them in.</p>
+      </button>
+    </aside>
+
+    <section class="main">
+      <section class="topbar" id="dashboard">
+        <div>
+          <p class="eyebrow">Admin command center</p>
+          <h1>Run announcements, rewards, meetings, and members from one place.</h1>
+          <p class="lead">A role-based NGO system for board members, youth club members, and super admin, with member circles for clean hierarchy tracking.</p>
+        </div>
+        <div class="actions">
+          <button class="button primary" data-modal="announcement">+ New announcement</button>
+          <button class="button" data-modal="member">+ Add member</button>
+        </div>
+      </section>
+
+      <div class="toast" id="toast">Ready</div>
+
+      <section class="grid" aria-label="System metrics">
+        <button class="card metric" data-toast="Active members opened"><div class="metric-value" id="memberCount">248</div><div class="metric-label">Active members</div></button>
+        <button class="card metric" data-toast="Board members opened"><div class="metric-value">7</div><div class="metric-label">Board members</div></button>
+        <button class="card metric" data-toast="Pending approvals opened"><div class="metric-value" id="approvalCount">3</div><div class="metric-label">Pending approvals</div></button>
+        <button class="card metric" data-toast="Engagement analytics opened"><div class="metric-value">84%</div><div class="metric-label">Monthly engagement</div></button>
+      </section>
+
+      <section class="two" id="announcements">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Broadcast Announcements</h2>
+            <button class="badge green" data-toast="Members receive published announcements instantly">Instant push</button>
+          </div>
+          <div class="card-body list">
+            <div class="tabs" id="announcementTabs"></div>
+            <div class="list" id="announcementList"></div>
+          </div>
+        </div>
+
+        <div class="card" id="rewards">
+          <div class="card-header">
+            <h2 class="card-title">Monthly Top 10</h2>
+            <button class="badge gold" data-toast="Leaderboard is calculated every month">May 2026</button>
+          </div>
+          <div class="card-body" id="leaderboard"></div>
+        </div>
+      </section>
+
+      <section class="three">
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">Board Approvals</h2></div>
+          <div class="card-body list" id="approvals"></div>
+        </div>
+
+        <div class="card" id="meetings">
+          <div class="card-header">
+            <h2 class="card-title">Meetings</h2>
+            <button class="icon" data-toast="Meeting creation opened">+</button>
+          </div>
+          <div class="card-body list">
+            <button class="row" data-toast="May Board Planning attendance opened"><div><strong>May Board Planning</strong><span class="meta">Agenda, approvals, monthly winners</span></div><span class="badge green">May 8, 7:30 PM</span></button>
+            <button class="row" data-toast="Event Safety Review attendance opened"><div><strong>Event Safety Review</strong><span class="meta">Volunteer roles and risk checklist</span></div><span class="badge green">May 12, 8:00 PM</span></button>
+          </div>
+        </div>
+
+        <div class="card" id="chat">
+          <div class="card-header"><h2 class="card-title">Board Chat</h2></div>
+          <div class="card-body">
+            <div class="tabs" id="chatTabs"></div>
+            <div class="chat" id="chatMessages"></div>
+            <div class="composer">
+              <input id="chatInput" placeholder="Message General">
+              <button class="icon solid" id="sendChat">➤</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="two" id="admin">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Member Circle</h2>
+            <button class="button" data-modal="member">+ Add under selected</button>
+          </div>
+          <div class="card-body">
+            <div class="chips" id="memberChips"></div>
+            <div class="tree" id="memberTree"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2 class="card-title">System Controls</h2></div>
+          <div class="card-body list">
+            <button class="row" data-toast="Board member management opened"><div><strong>Board members</strong><span class="meta">Add or remove the 7 board seats</span></div><span class="badge green">Admin</span></button>
+            <button class="row" data-toast="Activity monitor opened"><div><strong>Activity monitor</strong><span class="meta">Track announcements, rewards, meetings, and member additions</span></div><span class="badge blue">Live</span></button>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div class="modal-bg" id="announcementModal">
+    <form class="modal" id="announcementForm">
+      <div class="modal-header">
+        <h2>New Announcement</h2>
+        <button class="icon" type="button" data-close>×</button>
+      </div>
+      <label>Title<input name="title" required placeholder="Announcement title"></label>
+      <label>Category<select name="category"><option>Events</option><option>Urgent</option><option>Opportunities</option></select></label>
+      <label>Content<textarea name="content" required placeholder="Write the update"></textarea></label>
+      <button class="button primary" type="submit">Submit announcement</button>
+    </form>
+  </div>
+
+  <div class="modal-bg" id="memberModal">
+    <form class="modal" id="memberForm">
+      <div class="modal-header">
+        <h2>Add Member</h2>
+        <button class="icon" type="button" data-close>×</button>
+      </div>
+      <label>Name<input name="name" required placeholder="Member name"></label>
+      <label>Email<input name="email" required type="email" placeholder="member@email.com"></label>
+      <label>Place under<select name="parentId" id="parentSelect"></select></label>
+      <button class="button primary" type="submit">Add member</button>
+    </form>
+  </div>
+
+  <script>
+    const state = {
+      filter: "All",
+      channel: "General",
+      selectedMemberId: "nadia",
+      members: [
+        { id: "nadia", name: "Nadia", points: 182 },
+        { id: "ethan", name: "Ethan", points: 176 },
+        { id: "irfan", name: "Irfan", points: 164 },
+        { id: "leah", name: "Leah", points: 151, invitedById: "nadia" },
+        { id: "arjun", name: "Arjun", points: 147, invitedById: "nadia" },
+        { id: "chloe", name: "Chloe", points: 139, invitedById: "ethan" },
+        { id: "ravi", name: "Ravi", points: 132, invitedById: "irfan" },
+        { id: "maya", name: "Maya", points: 126, invitedById: "leah" },
+        { id: "yusuf", name: "Yusuf", points: 119, invitedById: "arjun" },
+        { id: "grace", name: "Grace", points: 111, invitedById: "chloe" }
+      ],
+      announcements: [
+        { title: "Community Service Saturday", category: "Events", tone: "green", detail: "Registration closes Thursday, 8:00 PM." },
+        { title: "Scholarship briefing moved earlier", category: "Urgent", tone: "red", detail: "New start time is 6:30 PM in the main hall." },
+        { title: "Youth leadership applications open", category: "Opportunities", tone: "blue", detail: "Members can apply until May 18." }
+      ],
+      approvals: [
+        { title: "Publish volunteer drive announcement", type: "Announcement", owner: "Admin Office", status: "Pending" },
+        { title: "Approve May sports day reward pool", type: "Rewards", owner: "Youth Programs", status: "Pending" },
+        { title: "Confirm community partner event", type: "Event", owner: "Partnerships", status: "Pending" }
+      ],
+      messages: [
+        { channel: "General", mine: false, title: "General", detail: "Please review the event approval before Friday." },
+        { channel: "Decisions", mine: true, title: "Decisions", detail: "Reward allocation is ready for vote." },
+        { channel: "Meetings", mine: false, title: "Meetings", detail: "Minutes upload slot added to each meeting." }
+      ]
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const toast = (message) => $("toast").textContent = message;
+
+    function renderAnnouncements() {
+      $("announcementTabs").innerHTML = ["All", "Events", "Urgent", "Opportunities"].map(category =>
+        `<button class="tab ${state.filter === category ? "active" : ""}" data-filter="${category}">${category}</button>`
+      ).join("");
+
+      const items = state.filter === "All" ? state.announcements : state.announcements.filter(item => item.category === state.filter);
+      $("announcementList").innerHTML = items.map(item =>
+        `<button class="row" data-toast="${item.title} opened"><div><strong>${item.title}</strong><span class="meta">${item.detail}</span></div><span class="badge ${item.tone}">${item.category}</span></button>`
+      ).join("");
+    }
+
+    function renderLeaderboard() {
+      $("leaderboard").innerHTML = [...state.members].sort((a, b) => b.points - a.points).slice(0, 10).map((member, index) =>
+        `<button class="leader-row" data-member="${member.id}"><span class="rank">${index + 1}</span><strong>${member.name}</strong><span class="meta">${member.points} pts</span></button>`
+      ).join("");
+    }
+
+    function renderApprovals() {
+      $("approvalCount").textContent = state.approvals.filter(item => item.status === "Pending").length;
+      $("approvals").innerHTML = state.approvals.map((approval, index) => {
+        const tone = approval.status === "Approved" ? "green" : approval.status === "Rejected" ? "red" : "blue";
+        return `<div class="row"><button data-toast="${approval.title} selected" style="border:0;background:transparent;text-align:left;padding:0"><strong>${approval.title}</strong><span class="meta">${approval.owner}</span></button><div class="inline-actions"><span class="badge ${tone}">${approval.status}</span><button class="icon" data-approve="${index}">✓</button><button class="icon" data-reject="${index}">×</button></div></div>`;
+      }).join("");
+    }
+
+    function renderChat() {
+      $("chatTabs").innerHTML = ["General", "Meetings", "Decisions"].map(channel =>
+        `<button class="tab ${state.channel === channel ? "active" : ""}" data-channel="${channel}">${channel}</button>`
+      ).join("");
+      $("chatInput").placeholder = `Message ${state.channel}`;
+      $("chatMessages").innerHTML = state.messages.filter(message => message.channel === state.channel).map(message =>
+        `<button class="message ${message.mine ? "mine" : ""}" data-toast="${message.title} message selected"><strong>${message.title}</strong><span class="meta">${message.detail}</span></button>`
+      ).join("");
+    }
+
+    function renderMembers() {
+      $("memberCount").textContent = state.members.length + 238;
+      $("memberChips").innerHTML = state.members.slice(0, 6).map(member =>
+        `<button class="chip ${member.id === state.selectedMemberId ? "active" : ""}" data-member="${member.id}">${member.name}</button>`
+      ).join("");
+      $("parentSelect").innerHTML = state.members.map(member =>
+        `<option value="${member.id}" ${member.id === state.selectedMemberId ? "selected" : ""}>${member.name}</option>`
+      ).join("");
+
+      const selected = state.members.find(member => member.id === state.selectedMemberId) || state.members[0];
+      const children = state.members.filter(member => member.invitedById === selected.id);
+      $("memberTree").innerHTML = `
+        <div class="tree-node root-node"><strong>${selected.name}</strong><span class="meta">Selected member</span></div>
+        <div class="tree-children">
+          ${children.length ? children.map(member => `<button class="tree-node" data-member="${member.id}"><strong>${member.name}</strong><span class="meta">${state.members.filter(child => child.invitedById === member.id).length} connected</span></button>`).join("") : `<button class="tree-node empty-node" data-modal="member"><strong>Add first connected member</strong><span class="meta">They will sit under ${selected.name}</span></button>`}
+        </div>`;
+    }
+
+    function renderAll() {
+      renderAnnouncements();
+      renderLeaderboard();
+      renderApprovals();
+      renderChat();
+      renderMembers();
+    }
+
+    document.addEventListener("click", (event) => {
+      const target = event.target.closest("button");
+      if (!target) return;
+
+      if (target.dataset.scroll) {
+        document.querySelectorAll(".nav button").forEach(button => button.classList.toggle("active", button.dataset.scroll === target.dataset.scroll));
+        document.getElementById(target.dataset.scroll).scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      if (target.dataset.toast) toast(target.dataset.toast);
+      if (target.dataset.filter) { state.filter = target.dataset.filter; renderAnnouncements(); }
+      if (target.dataset.member) { state.selectedMemberId = target.dataset.member; renderMembers(); toast("Member circle selected"); }
+      if (target.dataset.channel) { state.channel = target.dataset.channel; renderChat(); }
+      if (target.dataset.approve) { state.approvals[target.dataset.approve].status = "Approved"; renderApprovals(); toast("Approval approved"); }
+      if (target.dataset.reject) { state.approvals[target.dataset.reject].status = "Rejected"; renderApprovals(); toast("Approval rejected"); }
+      if (target.dataset.modal === "announcement") $("announcementModal").classList.add("open");
+      if (target.dataset.modal === "member") $("memberModal").classList.add("open");
+      if (target.dataset.close !== undefined) target.closest(".modal-bg").classList.remove("open");
+    });
+
+    $("sendChat").addEventListener("click", () => {
+      const input = $("chatInput");
+      if (!input.value.trim()) return;
+      state.messages.push({ channel: state.channel, mine: true, title: state.channel, detail: input.value.trim() });
+      input.value = "";
+      renderChat();
+      toast("Message sent");
+    });
+
+    $("announcementForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const category = form.get("category");
+      state.announcements.unshift({
+        title: form.get("title"),
+        detail: form.get("content"),
+        category,
+        tone: category === "Urgent" ? "red" : category === "Opportunities" ? "blue" : "green"
+      });
+      event.target.reset();
+      $("announcementModal").classList.remove("open");
+      renderAnnouncements();
+      toast("Announcement queued for board approval");
+    });
+
+    $("memberForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = new FormData(event.target);
+      const name = form.get("name").toString();
+      const parentId = form.get("parentId").toString();
+      state.members.push({
+        id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now(),
+        name,
+        points: 0,
+        invitedById: parentId
+      });
+      state.selectedMemberId = parentId;
+      event.target.reset();
+      $("memberModal").classList.remove("open");
+      renderAll();
+      toast(`${name} added to the member circle`);
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>

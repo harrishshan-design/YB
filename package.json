@@ -1,0 +1,39 @@
+{
+  "name": "ngo-system",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "dev:web": "next dev -p 3000",
+    "dev:api": "tsx watch apps/api/src/server.ts",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "api:start": "tsx apps/api/src/server.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "cors": "latest",
+    "express": "latest",
+    "lucide-react": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "socket.io": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/cors": "latest",
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "concurrently": "latest",
+    "prisma": "6.19.3",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
