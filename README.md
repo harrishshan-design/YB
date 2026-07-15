@@ -1,4 +1,4 @@
-# NGO Civic Platform
+# YB
 
 Role-based civic platform for public visitors, citizens, NGOs, government officers, board members, youth club members, and a super admin.
 
