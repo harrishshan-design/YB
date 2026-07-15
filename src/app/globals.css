@@ -1,7 +1,7 @@
 :root {
-  --background: #f5f7f2;
-  --foreground: #17211b;
-  --muted: #66746a;
+  --background: #f7f8f4;
+  --foreground: #101814;
+  --muted: #435247;
   --line: #d9e0d7;
   --panel: #ffffff;
   --panel-strong: #eef4eb;
@@ -27,6 +27,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 18px;
 }
 
 button,
@@ -48,7 +49,7 @@ a {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -87,8 +88,8 @@ a {
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 54px;
+  height: 54px;
   border-radius: 8px;
   background: #f7c948;
   color: #10291f;
@@ -99,13 +100,13 @@ a {
 
 .brand-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 22px;
 }
 
 .brand-subtitle {
   margin: 3px 0 0;
   color: #b7c9bd;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .nav {
@@ -118,11 +119,13 @@ a {
   border-radius: 8px;
   background: transparent;
   color: #dce8df;
-  padding: 12px;
+  padding: 16px;
   display: flex;
   align-items: center;
   gap: 10px;
   text-align: left;
+  font-size: 18px;
+  min-height: 58px;
 }
 
 .nav-item.active {
@@ -144,9 +147,9 @@ a {
 }
 
 .main {
-  padding: 28px;
+  padding: 32px;
   display: grid;
-  gap: 22px;
+  gap: 26px;
   align-content: start;
 }
 
@@ -160,7 +163,7 @@ a {
 .eyebrow {
   margin: 0 0 6px;
   color: var(--green);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -173,16 +176,17 @@ p {
 }
 
 h1 {
-  margin-bottom: 6px;
-  font-size: clamp(30px, 5vw, 54px);
+  margin-bottom: 10px;
+  font-size: clamp(38px, 6vw, 64px);
   letter-spacing: 0;
 }
 
 .lead {
   margin: 0;
   color: var(--muted);
-  max-width: 780px;
-  line-height: 1.6;
+  max-width: 900px;
+  line-height: 1.7;
+  font-size: 21px;
 }
 
 .actions {
@@ -196,12 +200,13 @@ h1 {
   border-radius: 8px;
   background: var(--panel);
   color: var(--foreground);
-  padding: 11px 14px;
+  padding: 16px 20px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-weight: 700;
-  min-height: 42px;
+  min-height: 58px;
+  font-size: 18px;
 }
 
 .button:hover,
@@ -219,7 +224,8 @@ h1 {
 
 .stats-grid,
 .dashboard-grid,
-.three-grid {
+.three-grid,
+.quick-grid {
   display: grid;
   gap: 16px;
 }
@@ -234,6 +240,41 @@ h1 {
 
 .three-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-action {
+  min-height: 150px;
+  border: 2px solid #c8d6cc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 22px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  text-align: left;
+  box-shadow: var(--shadow);
+}
+
+.quick-action:hover,
+.quick-action:focus-visible {
+  border-color: var(--green);
+  background: #edf8f1;
+}
+
+.quick-action span {
+  font-size: 24px;
+  font-weight: 850;
+}
+
+.quick-action small {
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.45;
 }
 
 .card {
@@ -265,7 +306,7 @@ h1 {
 
 .card-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 24px;
 }
 
 .card-body {
@@ -273,19 +314,25 @@ h1 {
 }
 
 .metric {
-  padding: 18px;
+  padding: 22px;
+  min-height: 132px;
 }
 
 .metric-value {
-  font-size: 34px;
+  font-size: 42px;
   font-weight: 800;
   line-height: 1;
+}
+
+.small-metric {
+  font-size: 22px;
+  line-height: 1.15;
 }
 
 .metric-label {
   color: var(--muted);
   margin-top: 8px;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .list {
@@ -297,10 +344,11 @@ h1 {
   display: flex;
   justify-content: space-between;
   gap: 14px;
-  padding: 14px;
+  padding: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfa;
+  min-height: 76px;
 }
 
 .row-button {
@@ -320,14 +368,14 @@ h1 {
 
 .meta {
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .badge {
   border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
   font-weight: 800;
   align-self: start;
   white-space: nowrap;
@@ -365,7 +413,7 @@ h1 {
   grid-template-columns: 42px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 10px 0;
+  padding: 14px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -380,8 +428,8 @@ h1 {
 }
 
 .rank {
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -398,10 +446,11 @@ h1 {
 .tab {
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 8px 12px;
+  padding: 12px 16px;
   background: white;
   color: var(--muted);
   font-weight: 700;
+  min-height: 48px;
 }
 
 .compact-tabs {
@@ -425,7 +474,7 @@ h1 {
 
 .message {
   max-width: 82%;
-  padding: 10px 12px;
+  padding: 14px;
   border-radius: 8px;
   background: white;
   border: 1px solid var(--line);
@@ -442,8 +491,8 @@ h1 {
   border-radius: 999px;
   background: #ffffff;
   color: var(--green-dark);
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 12px 16px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -456,8 +505,8 @@ h1 {
 }
 
 .icon-button {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
@@ -488,7 +537,9 @@ h1 {
   border-radius: 8px;
   background: #fbfcfa;
   color: var(--foreground);
-  padding: 11px 12px;
+  padding: 16px;
+  min-height: 56px;
+  font-size: 18px;
 }
 
 .modal textarea {
@@ -511,7 +562,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: white;
-  padding: 8px 12px;
+  padding: 12px 16px;
   color: var(--muted);
   font-weight: 700;
 }
@@ -539,7 +590,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfa;
-  padding: 12px;
+  padding: 16px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -564,12 +615,12 @@ h1 {
 }
 
 .modal {
-  width: min(520px, 100%);
+  width: min(620px, 100%);
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
   box-shadow: var(--shadow);
-  padding: 20px;
+  padding: 24px;
   display: grid;
   gap: 14px;
 }
@@ -589,8 +640,16 @@ h1 {
   display: grid;
   gap: 7px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 4px solid #f7c948;
+  outline-offset: 3px;
 }
 
 @media (max-width: 1040px) {
@@ -604,7 +663,8 @@ h1 {
 
   .stats-grid,
   .dashboard-grid,
-  .three-grid {
+  .three-grid,
+  .quick-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -622,7 +682,8 @@ h1 {
 
   .stats-grid,
   .dashboard-grid,
-  .three-grid {
+  .three-grid,
+  .quick-grid {
     grid-template-columns: 1fr;
   }
 }

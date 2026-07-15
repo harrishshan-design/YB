@@ -31,6 +31,57 @@ enum MeetingAttendanceStatus {
   ABSENT
 }
 
+enum ProgrammeStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum CaseStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  ESCALATED
+}
+
+enum GrantStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum OrganisationRole {
+  OWNER
+  ADMIN
+  COMMITTEE
+  MEMBER
+  VOLUNTEER
+}
+
+enum AccessLevel {
+  READ
+  REVIEW
+  APPROVE
+  ADMIN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  WAITLISTED
+}
+
 model User {
   id             String              @id @default(cuid())
   name           String
@@ -38,12 +89,14 @@ model User {
   role           Role                @default(MEMBER)
   points         Int                 @default(0)
   avatarUrl      String?
-  joinedAt       DateTime            @default(now())
+  joinedAt       DateTime            @default(now()) @map("joined_at")
   isActive       Boolean             @default(true)
-  inviteCode     String?             @unique
-  invitedById    String?
+  inviteCode     String?             @unique @map("invite_code")
+  invitedById    String?             @map("invited_by_id")
   invitedBy      User?               @relation("MemberCircle", fields: [invitedById], references: [id])
   invitedMembers User[]              @relation("MemberCircle")
+  organisationMemberships OrganisationMembership[]
+  committeePositions CommitteePosition[]
   announcements  Announcement[]      @relation("AnnouncementAuthor")
   rewards        Reward[]
   sentMessages   Message[]
@@ -51,19 +104,33 @@ model User {
   approvalsMade  Approval[]          @relation("ApprovalReviewer")
   meetingInvites MeetingAttendance[]
   eventRegistrations EventRegistration[]
+  programmeRegistrations ProgrammeRegistration[]
+  attendanceRecords AttendanceRecord[]
+  volunteerProfile VolunteerProfile?
+  assignedCases CaseComplaint[] @relation("AssignedCaseOfficer")
+  notifications Notification[]
+  subscriptions Subscription[]
+
+  @@map("users")
 }
 
 model Announcement {
   id          String               @id @default(cuid())
+  organisationId String?           @map("organisation_id")
+  organisation   Organisation?     @relation(fields: [organisationId], references: [id])
   title       String
   content     String
   category    AnnouncementCategory
-  createdById String
+  createdById String               @map("created_by")
   createdBy   User                 @relation("AnnouncementAuthor", fields: [createdById], references: [id])
-  createdAt   DateTime             @default(now())
-  publishedAt DateTime?
-  requiresApproval Boolean         @default(true)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+  publishedAt DateTime?            @map("published_at")
+  requiresApproval Boolean         @default(true) @map("requires_approval")
+  status      String               @default("DRAFT")
   approval    Approval?
+
+  @@map("announcements")
 }
 
 model Event {
@@ -71,89 +138,523 @@ model Event {
   title       String
   description String
   location    String
-  startsAt    DateTime
-  endsAt      DateTime
+  startsAt    DateTime     @map("starts_at")
+  endsAt      DateTime     @map("ends_at")
   capacity    Int?
   approval    Approval?
   attendees   EventRegistration[]
-  createdAt   DateTime     @default(now())
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  @@map("events")
 }
 
 model EventRegistration {
   id        String   @id @default(cuid())
-  eventId   String
-  userId    String
+  eventId   String   @map("event_id")
+  userId    String   @map("user_id")
   event     Event    @relation(fields: [eventId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
   attended  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@unique([eventId, userId])
+  @@map("event_registrations")
 }
 
 model Meeting {
   id          String              @id @default(cuid())
+  organisationId String?          @map("organisation_id")
+  organisation   Organisation?    @relation(fields: [organisationId], references: [id])
   title       String
   agenda      String
-  startsAt    DateTime
-  endsAt      DateTime
+  startsAt    DateTime            @map("starts_at")
+  endsAt      DateTime            @map("ends_at")
   location    String?
-  meetUrl     String?
-  minutesUrl  String?
-  createdAt   DateTime            @default(now())
+  meetUrl     String?             @map("meet_url")
+  minutesUrl  String?             @map("minutes_url")
+  createdBy   String?             @map("created_by")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  status      String              @default("SCHEDULED")
   attendance  MeetingAttendance[]
+  minutes     MeetingMinute[]
+
+  @@map("meetings")
 }
 
 model MeetingAttendance {
   id        String                  @id @default(cuid())
-  meetingId String
-  userId    String
+  meetingId String                  @map("meeting_id")
+  userId    String                  @map("user_id")
   status    MeetingAttendanceStatus @default(INVITED)
   meeting   Meeting                 @relation(fields: [meetingId], references: [id])
   user      User                    @relation(fields: [userId], references: [id])
 
   @@unique([meetingId, userId])
+  @@map("meeting_attendance")
 }
 
 model Reward {
   id        String   @id @default(cuid())
-  userId    String
+  userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id])
   points    Int
   reason    String
   month     String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("rewards")
 }
 
 model Message {
   id        String   @id @default(cuid())
-  senderId  String
+  senderId  String   @map("sender_id")
   sender    User     @relation(fields: [senderId], references: [id])
   channel   String
   message   String
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("messages")
 }
 
 model Approval {
   id             String          @id @default(cuid())
   status         ApprovalStatus  @default(PENDING)
   type           String
-  announcementId String?         @unique
-  eventId        String?         @unique
-  reviewerId     String?
+  announcementId String?         @unique @map("announcement_id")
+  eventId        String?         @unique @map("event_id")
+  reviewerId     String?         @map("reviewer_id")
   reviewer       User?           @relation("ApprovalReviewer", fields: [reviewerId], references: [id])
   announcement   Announcement?   @relation(fields: [announcementId], references: [id])
   event          Event?          @relation(fields: [eventId], references: [id])
   note           String?
-  createdAt      DateTime        @default(now())
-  reviewedAt     DateTime?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  reviewedAt     DateTime?       @map("reviewed_at")
+
+  @@map("approvals")
 }
 
 model Activity {
   id        String   @id @default(cuid())
-  userId    String
+  userId    String   @map("user_id")
   user      User     @relation(fields: [userId], references: [id])
   action    String
   metadata  Json?
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("activity")
+}
+
+model Organisation {
+  id          String      @id @default(cuid())
+  name        String
+  registrationNo String? @unique @map("registration_no")
+  contactEmail String?   @map("contact_email")
+  status      String      @default("ACTIVE")
+  createdBy   String?     @map("created_by")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  profile     OrganisationProfile?
+  memberships OrganisationMembership[]
+  committeePositions CommitteePosition[]
+  programmes  Programme[]
+  meetings    Meeting[]
+  announcements Announcement[]
+  budgets     Budget[]
+  expenses    Expense[]
+  donations   Donation[]
+  grantApplications GrantApplication[]
+  assistanceCases AssistanceCase[]
+  agencyAccess AgencyOrganisationAccess[]
+  documents   Document[]
+
+  @@map("organisations")
+}
+
+model OrganisationProfile {
+  id             String       @id @default(cuid())
+  organisationId String       @unique @map("organisation_id")
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  mission        String?
+  address        String?
+  website        String?
+  phone          String?
+  logoUrl        String?      @map("logo_url")
+  metadata       Json?
+  status         String       @default("ACTIVE")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("organisation_profiles")
+}
+
+model OrganisationMembership {
+  id             String           @id @default(cuid())
+  organisationId String           @map("organisation_id")
+  userId         String           @map("user_id")
+  organisation   Organisation     @relation(fields: [organisationId], references: [id])
+  user           User             @relation(fields: [userId], references: [id])
+  role           OrganisationRole @default(MEMBER)
+  status         String           @default("ACTIVE")
+  createdBy      String?          @map("created_by")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@unique([organisationId, userId])
+  @@map("organisation_memberships")
+}
+
+model CommitteePosition {
+  id             String       @id @default(cuid())
+  organisationId String       @map("organisation_id")
+  userId         String       @map("user_id")
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+  title          String
+  termStartsAt   DateTime?    @map("term_starts_at")
+  termEndsAt     DateTime?    @map("term_ends_at")
+  status         String       @default("ACTIVE")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("committee_positions")
+}
+
+model Programme {
+  id          String          @id @default(cuid())
+  organisationId String       @map("organisation_id")
+  organisation Organisation   @relation(fields: [organisationId], references: [id])
+  title       String
+  description String
+  status      ProgrammeStatus @default(DRAFT)
+  startsAt    DateTime?       @map("starts_at")
+  endsAt      DateTime?       @map("ends_at")
+  createdBy   String?         @map("created_by")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  tasks       ProgrammeTask[]
+  registrations ProgrammeRegistration[]
+  attendanceRecords AttendanceRecord[]
+  volunteers  VolunteerAssignment[]
+
+  @@map("programmes")
+}
+
+model ProgrammeTask {
+  id          String     @id @default(cuid())
+  programmeId String     @map("programme_id")
+  programme   Programme  @relation(fields: [programmeId], references: [id])
+  title       String
+  description String?
+  assignedTo  String?    @map("assigned_to")
+  dueAt       DateTime?  @map("due_at")
+  status      TaskStatus @default(TODO)
+  createdBy   String?    @map("created_by")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("programme_tasks")
+}
+
+model ProgrammeRegistration {
+  id          String             @id @default(cuid())
+  programmeId String             @map("programme_id")
+  userId      String             @map("user_id")
+  programme   Programme          @relation(fields: [programmeId], references: [id])
+  user        User               @relation(fields: [userId], references: [id])
+  status      RegistrationStatus @default(PENDING)
+  createdBy   String?            @map("created_by")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@unique([programmeId, userId])
+  @@map("programme_registrations")
+}
+
+model AttendanceRecord {
+  id          String    @id @default(cuid())
+  programmeId String?   @map("programme_id")
+  meetingId   String?   @map("meeting_id")
+  userId      String    @map("user_id")
+  programme   Programme? @relation(fields: [programmeId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+  status      String    @default("PRESENT")
+  checkedInAt DateTime? @map("checked_in_at")
+  createdBy   String?   @map("created_by")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("attendance_records")
+}
+
+model VolunteerProfile {
+  id           String                @id @default(cuid())
+  userId       String                @unique @map("user_id")
+  user         User                  @relation(fields: [userId], references: [id])
+  skills       String[]
+  availability Json?
+  assignments  VolunteerAssignment[]
+  hours        VolunteerHour[]
+  status       String                @default("ACTIVE")
+  createdBy    String?               @map("created_by")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  @@map("volunteer_profiles")
+}
+
+model VolunteerAssignment {
+  id          String           @id @default(cuid())
+  programmeId String           @map("programme_id")
+  volunteerId String           @map("volunteer_id")
+  programme   Programme       @relation(fields: [programmeId], references: [id])
+  volunteer   VolunteerProfile @relation(fields: [volunteerId], references: [id])
+  role        String
+  hours       Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@unique([programmeId, volunteerId])
+  @@map("volunteer_assignments")
+}
+
+model VolunteerHour {
+  id          String           @id @default(cuid())
+  volunteerId String           @map("volunteer_id")
+  programmeId String?          @map("programme_id")
+  volunteer   VolunteerProfile @relation(fields: [volunteerId], references: [id])
+  hours       Decimal          @db.Decimal(8, 2)
+  serviceDate DateTime         @map("service_date")
+  description String?
+  status      String           @default("SUBMITTED")
+  createdBy   String?          @map("created_by")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@map("volunteer_hours")
+}
+
+model CaseComplaint {
+  id           String     @id @default(cuid())
+  referenceNo  String     @unique @map("reference_no")
+  title        String
+  description  String
+  status       CaseStatus @default(OPEN)
+  assignedToId String?    @map("assigned_to_id")
+  assignedTo   User?      @relation("AssignedCaseOfficer", fields: [assignedToId], references: [id])
+  createdAt    DateTime   @default(now()) @map("created_at")
+  resolvedAt   DateTime?  @map("resolved_at")
+
+  @@map("case_complaints")
+}
+
+model MeetingMinute {
+  id        String   @id @default(cuid())
+  meetingId String   @map("meeting_id")
+  meeting   Meeting  @relation(fields: [meetingId], references: [id])
+  content   String
+  documentId String? @map("document_id")
+  status    String   @default("DRAFT")
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("meeting_minutes")
+}
+
+model Budget {
+  id             String       @id @default(cuid())
+  organisationId String       @map("organisation_id")
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  programmeId    String?      @map("programme_id")
+  title          String
+  amount         Decimal      @db.Decimal(12, 2)
+  status         String       @default("ACTIVE")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("budgets")
+}
+
+model Expense {
+  id             String       @id @default(cuid())
+  organisationId String       @map("organisation_id")
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  budgetId       String?      @map("budget_id")
+  title          String
+  amount         Decimal      @db.Decimal(12, 2)
+  receiptDocumentId String?   @map("receipt_document_id")
+  status         String       @default("SUBMITTED")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("expenses")
+}
+
+model Donation {
+  id             String       @id @default(cuid())
+  organisationId String       @map("organisation_id")
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  donorName      String?      @map("donor_name")
+  donorEmail     String?      @map("donor_email")
+  amount         Decimal      @db.Decimal(12, 2)
+  paymentRef     String?      @unique @map("payment_ref")
+  status         String       @default("PENDING")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("donations")
+}
+
+model GrantApplication {
+  id          String      @id @default(cuid())
+  organisationId String   @map("organisation_id")
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  title       String
+  amount      Decimal     @db.Decimal(12, 2)
+  status      GrantStatus @default(DRAFT)
+  submittedAt DateTime?   @map("submitted_at")
+  paidAt      DateTime?   @map("paid_at")
+  createdBy   String?     @map("created_by")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@map("grant_applications")
+}
+
+model AssistanceCase {
+  id             String       @id @default(cuid())
+  organisationId String       @map("organisation_id")
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  citizenName    String?      @map("citizen_name")
+  title          String
+  description    String
+  status         CaseStatus   @default(OPEN)
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@map("assistance_cases")
+}
+
+model CitizenReport {
+  id          String     @id @default(cuid())
+  reporterId  String?    @map("reporter_id")
+  title       String
+  description String
+  category    String
+  status      CaseStatus @default(OPEN)
+  createdBy   String?    @map("created_by")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@map("citizen_reports")
+}
+
+model GovernmentAgency {
+  id          String     @id @default(cuid())
+  name        String
+  code        String?    @unique
+  status      String     @default("ACTIVE")
+  createdBy   String?    @map("created_by")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  organisationAccess AgencyOrganisationAccess[]
+
+  @@map("government_agencies")
+}
+
+model AgencyOrganisationAccess {
+  id             String       @id @default(cuid())
+  agencyId       String       @map("agency_id")
+  organisationId String       @map("organisation_id")
+  accessLevel    AccessLevel  @map("access_level")
+  approvedBy     String?      @map("approved_by")
+  approvedAt     DateTime?    @map("approved_at")
+  expiresAt      DateTime?    @map("expires_at")
+  agency         GovernmentAgency @relation(fields: [agencyId], references: [id])
+  organisation   Organisation @relation(fields: [organisationId], references: [id])
+  status         String       @default("ACTIVE")
+  createdBy      String?      @map("created_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@unique([agencyId, organisationId])
+  @@map("agency_organisation_access")
+}
+
+model ReportSnapshot {
+  id        String   @id @default(cuid())
+  name      String
+  scope     String
+  metrics   Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("report_snapshots")
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  organisationId String? @map("organisation_id")
+  organisation Organisation? @relation(fields: [organisationId], references: [id])
+  ownerType   String   @map("owner_type")
+  ownerId     String   @map("owner_id")
+  storageKey  String   @unique @map("storage_key")
+  fileName    String   @map("file_name")
+  contentType String   @map("content_type")
+  status      String   @default("ACTIVE")
+  createdBy   String?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("documents")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  channel   String
+  title     String
+  body      String
+  readAt    DateTime? @map("read_at")
+  status    String   @default("QUEUED")
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organisationId String?  @map("organisation_id")
+  actorId        String?  @map("actor_id")
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String?  @map("entity_id")
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model Subscription {
+  id             String   @id @default(cuid())
+  userId         String?  @map("user_id")
+  organisationId String?  @map("organisation_id")
+  user           User?    @relation(fields: [userId], references: [id])
+  plan           String
+  status         String   @default("ACTIVE")
+  startedAt      DateTime @default(now()) @map("started_at")
+  expiresAt      DateTime? @map("expires_at")
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
 }

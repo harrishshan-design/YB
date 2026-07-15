@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NGO Youth Club System</title>
+  <title>NGO Civic Platform</title>
   <style>
     :root {
-      --bg: #f5f7f2;
-      --text: #17211b;
-      --muted: #66746a;
+      --bg: #f7f8f4;
+      --text: #101814;
+      --muted: #435247;
       --line: #d9e0d7;
       --panel: #ffffff;
       --soft: #eef4eb;
@@ -26,6 +26,7 @@
       background: var(--bg);
       color: var(--text);
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 18px;
     }
 
     button, input, textarea, select { font: inherit; }
@@ -34,7 +35,7 @@
     .shell {
       min-height: 100vh;
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
+      grid-template-columns: 300px minmax(0, 1fr);
     }
 
     .sidebar {
@@ -61,8 +62,8 @@
     }
 
     .brand-mark {
-      width: 42px;
-      height: 42px;
+      width: 54px;
+      height: 54px;
       border-radius: 8px;
       background: #f7c948;
       color: #10291f;
@@ -72,18 +73,20 @@
     }
 
     .brand h2, .brand p, h1, h2, h3, p { margin-top: 0; }
-    .brand h2 { margin-bottom: 3px; font-size: 18px; }
-    .brand p, .side-card p { color: #b7c9bd; font-size: 13px; margin-bottom: 0; }
+    .brand h2 { margin-bottom: 3px; font-size: 22px; }
+    .brand p, .side-card p { color: #b7c9bd; font-size: 16px; margin-bottom: 0; }
 
     .nav { display: grid; gap: 8px; }
     .nav button {
       border-radius: 8px;
       background: transparent;
       color: #dce8df;
-      padding: 12px;
+      padding: 16px;
       display: flex;
       gap: 10px;
       align-items: center;
+      min-height: 58px;
+      font-size: 18px;
     }
 
     .nav button.active, .nav button:hover, .side-card:hover {
@@ -100,9 +103,9 @@
     }
 
     .main {
-      padding: 28px;
+      padding: 32px;
       display: grid;
-      gap: 22px;
+      gap: 26px;
       align-content: start;
     }
 
@@ -115,22 +118,23 @@
 
     .eyebrow {
       color: var(--green);
-      font-size: 13px;
+      font-size: 15px;
       font-weight: 800;
       text-transform: uppercase;
       margin-bottom: 6px;
     }
 
     h1 {
-      margin-bottom: 6px;
-      font-size: clamp(30px, 5vw, 54px);
+      margin-bottom: 10px;
+      font-size: clamp(38px, 6vw, 64px);
       letter-spacing: 0;
     }
 
     .lead {
       color: var(--muted);
-      max-width: 780px;
-      line-height: 1.6;
+      max-width: 900px;
+      line-height: 1.7;
+      font-size: 21px;
       margin-bottom: 0;
     }
 
@@ -150,11 +154,12 @@
     }
 
     .button {
-      min-height: 42px;
-      padding: 11px 14px;
+      min-height: 58px;
+      padding: 16px 20px;
       display: inline-flex;
       gap: 8px;
       align-items: center;
+      font-size: 18px;
     }
 
     .button.primary {
@@ -190,15 +195,38 @@
       border-radius: 999px;
       background: white;
       color: #154c36;
-      padding: 8px 12px;
-      font-size: 13px;
+      padding: 12px 16px;
+      font-size: 16px;
       font-weight: 800;
     }
 
-    .grid, .two, .three { display: grid; gap: 16px; }
+    .grid, .two, .three, .quick-grid { display: grid; gap: 16px; }
     .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .two { grid-template-columns: 1.2fr 0.8fr; }
     .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .quick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .quick-action {
+      min-height: 150px;
+      border: 2px solid #c8d6cc;
+      border-radius: 8px;
+      background: white;
+      color: var(--text);
+      padding: 22px;
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      text-align: left;
+      box-shadow: var(--shadow);
+    }
+
+    .quick-action:hover, .quick-action:focus-visible {
+      border-color: var(--green);
+      background: #edf8f1;
+    }
+
+    .quick-action span { font-size: 24px; font-weight: 850; }
+    .quick-action small { color: var(--muted); font-size: 17px; line-height: 1.45; }
 
     .card {
       background: var(--panel);
@@ -209,12 +237,13 @@
 
     .metric {
       width: 100%;
-      padding: 18px;
+      padding: 22px;
+      min-height: 132px;
       text-align: left;
     }
 
     .metric-value {
-      font-size: 34px;
+      font-size: 42px;
       font-weight: 900;
       line-height: 1;
     }
@@ -222,7 +251,7 @@
     .metric-label {
       color: var(--muted);
       margin-top: 8px;
-      font-size: 14px;
+      font-size: 17px;
     }
 
     .card-header {
@@ -233,7 +262,7 @@
       gap: 12px;
     }
 
-    .card-title { margin: 0; font-size: 18px; }
+    .card-title { margin: 0; font-size: 24px; }
     .card-body { padding: 18px; }
     .list { display: grid; gap: 12px; }
 
@@ -247,10 +276,11 @@
 
     .row {
       width: 100%;
-      padding: 14px;
+      padding: 18px;
       display: flex;
       justify-content: space-between;
       gap: 14px;
+      min-height: 76px;
     }
 
     .row:hover, .leader-row:hover, .tree-node:hover, .metric:hover {
@@ -258,13 +288,13 @@
       background: #f2f8f4;
     }
 
-    .meta { color: var(--muted); font-size: 13px; line-height: 1.4; display: block; margin-top: 4px; }
+    .meta { color: var(--muted); font-size: 16px; line-height: 1.5; display: block; margin-top: 4px; }
 
     .badge {
       border: 0;
       border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 12px;
+      padding: 8px 12px;
+      font-size: 14px;
       font-weight: 900;
       align-self: start;
       white-space: nowrap;
@@ -281,13 +311,13 @@
       grid-template-columns: 42px minmax(0, 1fr) auto;
       gap: 12px;
       align-items: center;
-      padding: 10px;
+      padding: 14px;
       margin-bottom: 8px;
     }
 
     .rank {
-      width: 34px;
-      height: 34px;
+      width: 42px;
+      height: 42px;
       border-radius: 8px;
       display: grid;
       place-items: center;
@@ -308,7 +338,7 @@
 
     .message {
       max-width: 82%;
-      padding: 10px 12px;
+      padding: 14px;
       background: white;
     }
 
@@ -327,7 +357,9 @@
       border-radius: 8px;
       background: #fbfcfa;
       color: var(--text);
-      padding: 11px 12px;
+      padding: 16px;
+      min-height: 56px;
+      font-size: 18px;
     }
 
     textarea { min-height: 110px; resize: vertical; }
@@ -336,7 +368,7 @@
     .tree-children { display: grid; gap: 10px; padding-left: 20px; border-left: 2px solid var(--line); }
     .tree-node {
       width: 100%;
-      padding: 12px;
+      padding: 16px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -363,7 +395,7 @@
       border-radius: 8px;
       background: white;
       box-shadow: var(--shadow);
-      padding: 20px;
+      padding: 24px;
       display: grid;
       gap: 14px;
     }
@@ -376,17 +408,22 @@
     }
 
     .modal-header h2 { margin: 0; }
-    label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 800; }
+    label { display: grid; gap: 7px; color: var(--muted); font-size: 16px; font-weight: 800; }
+
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 4px solid #f7c948;
+      outline-offset: 3px;
+    }
 
     @media (max-width: 1040px) {
       .shell { grid-template-columns: 1fr; }
-      .grid, .two, .three { grid-template-columns: 1fr 1fr; }
+      .grid, .two, .three, .quick-grid { grid-template-columns: 1fr 1fr; }
     }
 
     @media (max-width: 720px) {
       .main { padding: 18px; }
       .topbar, .row { flex-direction: column; align-items: stretch; }
-      .grid, .two, .three { grid-template-columns: 1fr; }
+      .grid, .two, .three, .quick-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -396,41 +433,51 @@
       <button class="brand" data-scroll="dashboard">
         <div class="brand-mark">YC</div>
         <div>
-          <h2>Youth Club OS</h2>
-          <p>NGO operations system</p>
+          <h2>NGO Help System</h2>
+          <p>Simple public and NGO service app</p>
         </div>
       </button>
 
       <nav class="nav" aria-label="Primary">
-        <button class="active" data-scroll="dashboard">📊 Dashboard</button>
-        <button data-scroll="announcements">📣 Announcements</button>
-        <button data-scroll="meetings">📅 Meetings</button>
-        <button data-scroll="rewards">🏆 Rewards</button>
-        <button data-scroll="chat">💬 Board Chat</button>
-        <button data-scroll="admin">🛡️ Admin</button>
+        <button class="active" data-scroll="dashboard">Home</button>
+        <button data-scroll="architecture">Main Areas</button>
+        <button data-scroll="announcements">News</button>
+        <button data-scroll="meetings">Meetings</button>
+        <button data-scroll="rewards">Points</button>
+        <button data-scroll="chat">Messages</button>
+        <button data-scroll="admin">Manage</button>
       </nav>
 
       <button class="side-card" data-modal="member">
-        <p class="eyebrow">Member access</p>
-        <h3>Members can add members</h3>
-        <p>Each new person stays connected to the member who brought them in.</p>
+        <p class="eyebrow">Simple mode</p>
+        <h3>Big buttons, clear steps</h3>
+        <p>Designed so members, citizens, staff, and elderly users can use it without training.</p>
       </button>
     </aside>
 
     <section class="main">
       <section class="topbar" id="dashboard">
         <div>
-          <p class="eyebrow">Admin command center</p>
-          <h1>Run announcements, rewards, meetings, and members from one place.</h1>
-          <p class="lead">A role-based NGO system for board members, youth club members, and super admin, with member circles for clean hierarchy tracking.</p>
+          <p class="eyebrow">Simple home</p>
+          <h1>What do you want to do today?</h1>
+          <p class="lead">Large buttons, plain words, and step-by-step actions for citizens, elderly members, NGO staff, board members, and government officers.</p>
         </div>
         <div class="actions">
-          <button class="button primary" data-modal="announcement">+ New announcement</button>
+          <button class="button primary" data-scroll="announcements">Read news</button>
           <button class="button" data-modal="member">+ Add member</button>
         </div>
       </section>
 
       <div class="toast" id="toast">Ready</div>
+
+      <section class="quick-grid" aria-label="Common actions">
+        <button class="quick-action" data-scroll="announcements"><span>Read latest news</span><small>See important updates from the NGO.</small></button>
+        <button class="quick-action" data-scroll="meetings"><span>Join a programme</span><small>Register for activities and events.</small></button>
+        <button class="quick-action" data-scroll="architecture"><span>Ask for help</span><small>Submit a case or complaint in simple steps.</small></button>
+        <button class="quick-action" data-scroll="admin"><span>Add a member</span><small>Invite someone and keep them under your member circle.</small></button>
+        <button class="quick-action" data-scroll="rewards"><span>Check my points</span><small>View ranking and contribution points.</small></button>
+        <button class="quick-action" data-scroll="chat"><span>Send a message</span><small>Write to the board or committee.</small></button>
+      </section>
 
       <section class="grid" aria-label="System metrics">
         <button class="card metric" data-toast="Active members opened"><div class="metric-value" id="memberCount">248</div><div class="metric-label">Active members</div></button>
@@ -439,11 +486,51 @@
         <button class="card metric" data-toast="Engagement analytics opened"><div class="metric-value">84%</div><div class="metric-label">Monthly engagement</div></button>
       </section>
 
+      <section class="two" id="architecture">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Who Will Use This</h2>
+            <button class="badge blue" data-toast="Simple access selected">Simple access</button>
+          </div>
+          <div class="card-body list">
+            <button class="row" data-toast="Public Website opened"><div><strong>Public Website</strong><span class="meta">For anyone to read news, find help, and view programmes.</span></div><span class="badge green">Portal</span></button>
+            <button class="row" data-toast="Citizen App opened"><div><strong>Citizen App</strong><span class="meta">For people to join events, ask for help, and get updates.</span></div><span class="badge green">Portal</span></button>
+            <button class="row" data-toast="NGO Office opened"><div><strong>NGO Office</strong><span class="meta">For staff to manage members, programmes, volunteers, and money.</span></div><span class="badge green">Portal</span></button>
+            <button class="row" data-toast="Government View opened"><div><strong>Government View</strong><span class="meta">For officers to review reports, grants, and approved access.</span></div><span class="badge green">Portal</span></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Main Work Areas</h2>
+            <button class="badge green" data-toast="Main work areas selected">Plain workflow</button>
+          </div>
+          <div class="card-body list">
+            <button class="row" data-toast="Login and Access selected"><div><strong>Login and Access</strong><span class="meta">Only show each person what they are allowed to see.</span></div></button>
+            <button class="row" data-toast="NGO Records selected"><div><strong>NGO Records</strong><span class="meta">Keep organisation details, members, and committee roles.</span></div></button>
+            <button class="row" data-toast="Programmes selected"><div><strong>Programmes</strong><span class="meta">Create events, invite people, and record attendance.</span></div></button>
+            <button class="row" data-toast="Volunteers selected"><div><strong>Volunteers</strong><span class="meta">Track volunteer skills, hours, and service history.</span></div></button>
+            <button class="row" data-toast="Help and Complaints selected"><div><strong>Help and Complaints</strong><span class="meta">Receive cases, assign officers, and follow up clearly.</span></div></button>
+            <button class="row" data-toast="Money and Grants selected"><div><strong>Money and Grants</strong><span class="meta">Manage budgets, expenses, donations, and grant applications.</span></div></button>
+            <button class="row" data-toast="Reports selected"><div><strong>Reports</strong><span class="meta">Show simple numbers for impact, funds, and activity.</span></div></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="three">
+        <button class="card metric" data-toast="PostgreSQL selected"><div class="metric-value" style="font-size:20px">PostgreSQL</div><div class="metric-label">Structured system records and role-based data</div></button>
+        <button class="card metric" data-toast="Secure File Storage selected"><div class="metric-value" style="font-size:20px">Secure File Storage</div><div class="metric-label">Minutes, receipts, case evidence, grant documents</div></button>
+        <button class="card metric" data-toast="MyDigital ID selected"><div class="metric-value" style="font-size:20px">MyDigital ID</div><div class="metric-label">Citizen and officer identity verification</div></button>
+        <button class="card metric" data-toast="Payment Gateway selected"><div class="metric-value" style="font-size:20px">Payment Gateway</div><div class="metric-label">Donations, grant disbursement, claims</div></button>
+        <button class="card metric" data-toast="Messaging selected"><div class="metric-value" style="font-size:20px">Email / WhatsApp / Telegram</div><div class="metric-label">Announcements, reminders, case notifications</div></button>
+        <button class="card metric" data-toast="Government Open Data APIs selected"><div class="metric-value" style="font-size:20px">Government Open Data APIs</div><div class="metric-label">Public datasets, validation, reporting exchange</div></button>
+      </section>
+
       <section class="two" id="announcements">
         <div class="card">
           <div class="card-header">
-            <h2 class="card-title">Broadcast Announcements</h2>
-            <button class="badge green" data-toast="Members receive published announcements instantly">Instant push</button>
+            <h2 class="card-title">News and Announcements</h2>
+            <button class="badge green" data-toast="Members receive published announcements instantly">Send to all</button>
           </div>
           <div class="card-body list">
             <div class="tabs" id="announcementTabs"></div>
@@ -453,7 +540,7 @@
 
         <div class="card" id="rewards">
           <div class="card-header">
-            <h2 class="card-title">Monthly Top 10</h2>
+            <h2 class="card-title">Member Points</h2>
             <button class="badge gold" data-toast="Leaderboard is calculated every month">May 2026</button>
           </div>
           <div class="card-body" id="leaderboard"></div>
@@ -462,7 +549,7 @@
 
       <section class="three">
         <div class="card">
-          <div class="card-header"><h2 class="card-title">Board Approvals</h2></div>
+          <div class="card-header"><h2 class="card-title">Things To Approve</h2></div>
           <div class="card-body list" id="approvals"></div>
         </div>
 
@@ -478,7 +565,7 @@
         </div>
 
         <div class="card" id="chat">
-          <div class="card-header"><h2 class="card-title">Board Chat</h2></div>
+          <div class="card-header"><h2 class="card-title">Messages</h2></div>
           <div class="card-body">
             <div class="tabs" id="chatTabs"></div>
             <div class="chat" id="chatMessages"></div>
@@ -503,7 +590,7 @@
         </div>
 
         <div class="card">
-          <div class="card-header"><h2 class="card-title">System Controls</h2></div>
+          <div class="card-header"><h2 class="card-title">Manage System</h2></div>
           <div class="card-body list">
             <button class="row" data-toast="Board member management opened"><div><strong>Board members</strong><span class="meta">Add or remove the 7 board seats</span></div><span class="badge green">Admin</span></button>
             <button class="row" data-toast="Activity monitor opened"><div><strong>Activity monitor</strong><span class="meta">Track announcements, rewards, meetings, and member additions</span></div><span class="badge blue">Live</span></button>

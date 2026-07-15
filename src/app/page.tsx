@@ -2,21 +2,31 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import {
+  BarChart3,
   Bell,
+  Building2,
   CalendarDays,
   Check,
   CheckCircle2,
+  ClipboardList,
   Crown,
+  Database,
+  FileText,
   Gauge,
+  Globe2,
+  HeartHandshake,
+  Landmark,
   Megaphone,
   MessageSquareText,
   Plus,
   Send,
   ShieldCheck,
   Sparkles,
+  Smartphone,
   Trophy,
   UserPlus,
   Users,
+  WalletCards,
   X
 } from "lucide-react";
 
@@ -59,13 +69,49 @@ const meetings = [
   { title: "Event Safety Review", time: "May 12, 8:00 PM", detail: "Volunteer roles and risk checklist" }
 ];
 
+const platformSurfaces = [
+  { id: "public", title: "Public Website", detail: "For anyone to read news, find help, and view programmes.", icon: Globe2 },
+  { id: "citizen", title: "Citizen App", detail: "For people to join events, ask for help, and get updates.", icon: Smartphone },
+  { id: "ngo", title: "NGO Office", detail: "For staff to manage members, programmes, volunteers, and money.", icon: Building2 },
+  { id: "government", title: "Government View", detail: "For officers to review reports, grants, and approved access.", icon: Landmark }
+];
+
+const platformModules = [
+  { title: "Login and Access", detail: "Only show each person what they are allowed to see.", icon: ShieldCheck },
+  { title: "NGO Records", detail: "Keep organisation details, members, and committee roles.", icon: Building2 },
+  { title: "Programmes", detail: "Create events, invite people, and record attendance.", icon: CalendarDays },
+  { title: "Volunteers", detail: "Track volunteer skills, hours, and service history.", icon: HeartHandshake },
+  { title: "Help and Complaints", detail: "Receive cases, assign officers, and follow up clearly.", icon: ClipboardList },
+  { title: "Money and Grants", detail: "Manage budgets, expenses, donations, and grant applications.", icon: WalletCards },
+  { title: "Reports", detail: "Show simple numbers for impact, funds, and activity.", icon: BarChart3 }
+];
+
+const integrations = [
+  { title: "PostgreSQL", detail: "Structured system records and role-based data", icon: Database },
+  { title: "Secure File Storage", detail: "Minutes, receipts, case evidence, grant documents", icon: FileText },
+  { title: "MyDigital ID", detail: "Citizen and officer identity verification", icon: ShieldCheck },
+  { title: "Payment Gateway", detail: "Donations, grant disbursement, claims", icon: WalletCards },
+  { title: "Email / WhatsApp / Telegram", detail: "Announcements, reminders, case notifications", icon: Megaphone },
+  { title: "Government Open Data APIs", detail: "Public datasets, validation, reporting exchange", icon: Landmark }
+];
+
 const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: Gauge },
-  { id: "announcements", label: "Announcements", icon: Megaphone },
+  { id: "dashboard", label: "Home", icon: Gauge },
+  { id: "architecture", label: "Main Areas", icon: Building2 },
+  { id: "announcements", label: "News", icon: Megaphone },
   { id: "meetings", label: "Meetings", icon: CalendarDays },
-  { id: "rewards", label: "Rewards", icon: Trophy },
-  { id: "chat", label: "Board Chat", icon: MessageSquareText },
-  { id: "admin", label: "Admin", icon: ShieldCheck }
+  { id: "rewards", label: "Points", icon: Trophy },
+  { id: "chat", label: "Messages", icon: MessageSquareText },
+  { id: "admin", label: "Manage", icon: ShieldCheck }
+];
+
+const quickActions = [
+  { title: "Read latest news", detail: "See important updates from the NGO.", icon: Bell, section: "announcements" },
+  { title: "Join a programme", detail: "Register for activities and events.", icon: CalendarDays, section: "meetings" },
+  { title: "Ask for help", detail: "Submit a case or complaint in simple steps.", icon: HeartHandshake, section: "architecture" },
+  { title: "Add a member", detail: "Invite someone and keep them under your member circle.", icon: UserPlus, section: "admin" },
+  { title: "Check my points", detail: "View ranking and contribution points.", icon: Trophy, section: "rewards" },
+  { title: "Send a message", detail: "Write to the board or committee.", icon: MessageSquareText, section: "chat" }
 ];
 
 export default function Home() {
@@ -169,8 +215,8 @@ export default function Home() {
         <button className="brand brand-button" onClick={() => scrollToSection("dashboard")} aria-label="Open dashboard">
           <div className="brand-mark">YC</div>
           <div>
-            <h2 className="brand-title">Youth Club OS</h2>
-            <p className="brand-subtitle">NGO operations system</p>
+            <h2 className="brand-title">NGO Help System</h2>
+            <p className="brand-subtitle">Simple public and NGO service app</p>
           </div>
         </button>
 
@@ -187,28 +233,38 @@ export default function Home() {
         </nav>
 
         <button className="sidebar-panel panel-button" onClick={() => setModal("member")}>
-          <p className="eyebrow">Member access</p>
-          <h3>Members can add members</h3>
-          <p className="brand-subtitle">Each new person stays connected to the member who brought them in.</p>
+          <p className="eyebrow">Simple mode</p>
+          <h3>Big buttons, clear steps</h3>
+          <p className="brand-subtitle">Designed so members, citizens, staff, and elderly users can use it without training.</p>
         </button>
       </aside>
 
       <section className="main">
         <div className="topbar" id="dashboard">
           <div>
-            <p className="eyebrow">Admin command center</p>
-            <h1>Run announcements, rewards, meetings, and members from one place.</h1>
+            <p className="eyebrow">Simple home</p>
+            <h1>What do you want to do today?</h1>
             <p className="lead">
-              A role-based NGO system for board members, youth club members, and super admin, with member circles for clean hierarchy tracking.
+              Large buttons, plain words, and step-by-step actions for citizens, elderly members, NGO staff, board members, and government officers.
             </p>
           </div>
           <div className="actions">
-            <button className="button primary" onClick={() => setModal("announcement")}><Plus size={18} /> New announcement</button>
+            <button className="button primary" onClick={() => scrollToSection("announcements")}><Bell size={18} /> Read news</button>
             <button className="button" onClick={() => setModal("member")}><UserPlus size={18} /> Add member</button>
           </div>
         </div>
 
         <div className="toast" role="status">{toast}</div>
+
+        <section className="quick-grid" aria-label="Common actions">
+          {quickActions.map((action) => (
+            <button className="quick-action" key={action.title} onClick={() => scrollToSection(action.section)}>
+              <action.icon size={30} />
+              <span>{action.title}</span>
+              <small>{action.detail}</small>
+            </button>
+          ))}
+        </section>
 
         <section className="stats-grid" aria-label="System metrics">
           {stats.map((stat) => (
@@ -220,11 +276,58 @@ export default function Home() {
           ))}
         </section>
 
+        <section className="dashboard-grid" id="architecture">
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">Who Will Use This</h2>
+              <span className="badge blue">Simple access</span>
+            </div>
+            <div className="card-body list">
+              {platformSurfaces.map((surface) => (
+                <button className="row row-button" key={surface.title} onClick={() => setToast(`${surface.title} opened`)}>
+                  <div>
+                    <strong><surface.icon size={16} /> {surface.title}</strong>
+                    <span className="meta">{surface.detail}</span>
+                  </div>
+                  <span className="badge green">Portal</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">Main Work Areas</h2>
+              <button className="badge green badge-button" onClick={() => setToast("Main work areas selected")}>Plain workflow</button>
+            </div>
+            <div className="card-body list">
+              {platformModules.map((module) => (
+                <button className="row row-button" key={module.title} onClick={() => setToast(`${module.title} selected`)}>
+                  <div>
+                    <strong><module.icon size={16} /> {module.title}</strong>
+                    <span className="meta">{module.detail}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="three-grid">
+          {integrations.map((integration) => (
+            <button className="card metric clickable" key={integration.title} onClick={() => setToast(`${integration.title} integration selected`)}>
+              <integration.icon size={22} color="#236c4a" />
+              <div className="metric-value small-metric">{integration.title}</div>
+              <div className="metric-label">{integration.detail}</div>
+            </button>
+          ))}
+        </section>
+
         <section className="dashboard-grid" id="announcements">
           <div className="card">
             <div className="card-header">
-              <h2 className="card-title">Broadcast Announcements</h2>
-              <button className="badge green badge-button" onClick={() => setToast("Members receive published announcements instantly")}><Bell size={12} /> Instant push</button>
+              <h2 className="card-title">News and Announcements</h2>
+              <button className="badge green badge-button" onClick={() => setToast("Members receive published announcements instantly")}><Bell size={12} /> Send to all</button>
             </div>
             <div className="card-body list">
               <div className="tabs">
@@ -252,7 +355,7 @@ export default function Home() {
 
           <div className="card" id="rewards">
             <div className="card-header">
-              <h2 className="card-title">Monthly Top 10</h2>
+              <h2 className="card-title">Member Points</h2>
               <button className="badge gold badge-button" onClick={() => setToast("Leaderboard is calculated per reward month")}>May 2026</button>
             </div>
             <div className="card-body">
@@ -270,7 +373,7 @@ export default function Home() {
         <section className="three-grid">
           <div className="card">
             <div className="card-header">
-              <h2 className="card-title">Board Approvals</h2>
+              <h2 className="card-title">Things To Approve</h2>
               <CheckCircle2 size={20} color="#236c4a" />
             </div>
             <div className="card-body list">
@@ -310,7 +413,7 @@ export default function Home() {
 
           <div className="card" id="chat">
             <div className="card-header">
-              <h2 className="card-title">Board Chat</h2>
+              <h2 className="card-title">Messages</h2>
               <MessageSquareText size={20} color="#236c4a" />
             </div>
             <div className="card-body">
@@ -384,7 +487,7 @@ export default function Home() {
 
           <div className="card">
             <div className="card-header">
-              <h2 className="card-title">System Controls</h2>
+              <h2 className="card-title">Manage System</h2>
               <ShieldCheck size={20} color="#236c4a" />
             </div>
             <div className="card-body list">
