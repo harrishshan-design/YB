@@ -1,14 +1,14 @@
 # YB
 
-Role-based civic platform for public visitors, citizens, NGOs, government officers, board members, youth club members, and a super admin.
+Role-based civic platform with four clear sides: Member, President, Admin, and Master.
 
 ## Platform architecture
 
 ```text
-Public Website
-Citizen PWA
-NGO Dashboard
-Government Dashboard
+Member Side
+President Side
+Admin Side
+Master Side
         |
         v
 Next.js Application and API Layer
@@ -32,17 +32,34 @@ PostgreSQL + Secure File Storage
 
 ## What is included
 
+- Login screen with demo role accounts and role-based navigation
 - Elderly-friendly simple mode with large buttons, plain wording, clear focus states, and task-first navigation
-- Admin, board, and member roles
+- Member, President, Admin, and Master roles
 - Member circles: members can add new members under their own profile while admins keep full visibility of the hierarchy
 - Announcement categories for events, urgent updates, and opportunities
 - Rewards and monthly top 10 leaderboard model
-- Board meeting management with attendance and minutes URL support
+- President and committee meeting management with attendance and minutes URL support
 - Approval workflow for announcements and events
-- Board chat data model plus Socket.io channels for `general`, `meetings`, and `decisions`
+- President and committee chat data model plus Socket.io channels for `general`, `meetings`, and `decisions`
 - Next.js dashboard UI
 - Express API backed by Prisma/PostgreSQL
 - Platform module models for NGOs, programmes, volunteers, cases, grants, reports, and secure files
+
+## Demo login
+
+All demo passwords are `123456`.
+
+| Role | Email |
+| --- | --- |
+| Member | `member@demo.com` |
+| President | `president@demo.com` |
+| Admin | `admin@demo.com` |
+| Master | `master@demo.com` |
+
+The Express API also includes demo endpoints:
+
+- `POST /auth/login`
+- `GET /auth/me`
 
 ## Database tables
 
@@ -85,3 +102,4 @@ npm run dev:api
 
 The frontend runs on `http://localhost:3000`.
 The API runs on `http://localhost:4000`.
+

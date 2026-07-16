@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NGO Youth Club System",
-  description: "Operations dashboard for NGO board members, members, and admins."
+  title: "YB NGO Help System",
+  description: "Login-based NGO platform for Member, President, Admin, and Master sides."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

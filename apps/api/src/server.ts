@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import { Server } from "socket.io";
 import { z } from "zod";
 import { getDb } from "./db";
@@ -15,6 +16,14 @@ const io = new Server(server, {
 
 const db = getDb();
 const port = Number(process.env.PORT ?? 4000);
+const authTokens = new Map<string, { email: string; name: string; role: string; organisation: string }>();
+
+const demoAccounts = [
+  { email: "member@demo.com", password: "123456", name: "Nadia Member", role: "member", organisation: "Youth Club" },
+  { email: "president@demo.com", password: "123456", name: "Club President", role: "president", organisation: "Youth Club" },
+  { email: "admin@demo.com", password: "123456", name: "Operations Admin", role: "admin", organisation: "Youth Club" },
+  { email: "master@demo.com", password: "123456", name: "Master Account", role: "master", organisation: "Whole Platform" }
+];
 
 app.use(cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:3000" }));
 app.use(express.json());
@@ -23,8 +32,37 @@ app.get("/health", (_request, response) => {
   response.json({ ok: true, service: "ngo-api" });
 });
 
+app.post("/auth/login", (request, response) => {
+  const body = z.object({
+    email: z.string().email(),
+    password: z.string().min(1)
+  }).parse(request.body);
+
+  const account = demoAccounts.find((item) => item.email === body.email.toLowerCase() && item.password === body.password);
+  if (!account) {
+    response.status(401).json({ message: "Wrong email or password" });
+    return;
+  }
+
+  const token = randomUUID();
+  const { password: _password, ...user } = account;
+  authTokens.set(token, user);
+  response.json({ token, user });
+});
+
+app.get("/auth/me", (request, response) => {
+  const token = request.headers.authorization?.replace("Bearer ", "");
+  const user = token ? authTokens.get(token) : null;
+  if (!user) {
+    response.status(401).json({ message: "Not logged in" });
+    return;
+  }
+
+  response.json({ user });
+});
+
 app.get("/dashboard/summary", async (_request, response) => {
-  const [members, board, pendingApprovals, announcements, meetings, leaderboard] = await Promise.all([
+  const [members, presidentTeam, pendingApprovals, announcements, meetings, leaderboard] = await Promise.all([
     db.user.count({ where: { role: "MEMBER", isActive: true } }),
     db.user.count({ where: { role: "BOARD", isActive: true } }),
     db.approval.count({ where: { status: "PENDING" } }),
@@ -33,7 +71,7 @@ app.get("/dashboard/summary", async (_request, response) => {
     db.user.findMany({ where: { role: "MEMBER" }, orderBy: { points: "desc" }, take: 10 })
   ]);
 
-  response.json({ members, board, pendingApprovals, announcements, meetings, leaderboard });
+  response.json({ members, presidentTeam, pendingApprovals, announcements, meetings, leaderboard });
 });
 
 app.get("/members", async (_request, response) => {
@@ -190,7 +228,7 @@ app.post("/meetings", async (request, response) => {
     endsAt: z.string().datetime(),
     location: z.string().optional(),
     meetUrl: z.string().url().optional(),
-    invitedBoardMemberIds: z.array(z.string()).default([])
+    invitedCommitteeMemberIds: z.array(z.string()).default([])
   }).parse(request.body);
 
   const meeting = await db.meeting.create({
@@ -202,7 +240,7 @@ app.post("/meetings", async (request, response) => {
       location: body.location,
       meetUrl: body.meetUrl,
       attendance: {
-        create: body.invitedBoardMemberIds.map((userId) => ({ userId, status: "INVITED" }))
+        create: body.invitedCommitteeMemberIds.map((userId) => ({ userId, status: "INVITED" }))
       }
     },
     include: { attendance: true }
@@ -238,13 +276,14 @@ app.patch("/approvals/:id", async (request, response) => {
 
 io.on("connection", (socket) => {
   socket.on("join:announcements", () => socket.join("announcements"));
-  socket.on("join:board", (channel: string = "general") => socket.join(`board:${channel}`));
-  socket.on("board:message", async (payload: { senderId: string; channel: string; message: string }) => {
+  socket.on("join:committee", (channel: string = "general") => socket.join(`committee:${channel}`));
+  socket.on("committee:message", async (payload: { senderId: string; channel: string; message: string }) => {
     const message = await db.message.create({ data: payload, include: { sender: true } });
-    io.to(`board:${payload.channel}`).emit("board:message", message);
+    io.to(`committee:${payload.channel}`).emit("committee:message", message);
   });
 });
 
 server.listen(port, () => {
   console.log(`NGO API listening on http://localhost:${port}`);
 });
+
