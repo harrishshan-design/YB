@@ -142,7 +142,7 @@ export default function HomePage() {
       <main className="login-page">
         <section className="login-hero">
           <div>
-            <p className="eyebrow">NGO Help System</p>
+            <p className="eyebrow">ybngo.my</p>
             <h1>Login to continue.</h1>
             <p className="lead">Simple, secure access for members, the president, admins, and the master account.</p>
           </div>
@@ -176,8 +176,8 @@ export default function HomePage() {
         <button className="brand brand-button" onClick={() => setActiveView("home")} aria-label="Open home">
           <div className="brand-mark">YB</div>
           <div>
-            <h2 className="brand-title">NGO Help System</h2>
-            <p className="brand-subtitle">{currentUser.organisation}</p>
+            <h2 className="brand-title">YB NGO</h2>
+            <p className="brand-subtitle">ybngo.my - {currentUser.organisation}</p>
           </div>
         </button>
 

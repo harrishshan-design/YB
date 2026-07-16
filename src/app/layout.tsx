@@ -13,8 +13,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "YB NGO Help System",
-  description: "Login-based NGO platform for Member, President, Admin, and Master sides."
+  metadataBase: new URL("https://ybngo.my"),
+  title: {
+    default: "YB NGO Help System",
+    template: "%s | YB NGO"
+  },
+  description: "Login-based NGO platform for Member, President, Admin, and Master sides.",
+  alternates: {
+    canonical: "/"
+  },
+  openGraph: {
+    title: "YB NGO Help System",
+    description: "Login-based NGO platform for Member, President, Admin, and Master sides.",
+    url: "https://ybngo.my",
+    siteName: "YB NGO",
+    type: "website"
+  }
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

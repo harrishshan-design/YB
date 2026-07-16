@@ -1,5 +1,7 @@
 # YB
 
+Public website domain: `https://ybngo.my`
+
 Role-based civic platform with four clear sides: Member, President, Admin, and Master.
 
 ## Platform architecture
@@ -102,4 +104,6 @@ npm run dev:api
 
 The frontend runs on `http://localhost:3000`.
 The API runs on `http://localhost:4000`.
+
+Production website: `https://ybngo.my`
 
