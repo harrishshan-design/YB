@@ -4,6 +4,18 @@ Public website domain: `https://ybngo.my`
 
 Role-based civic platform with four clear sides: Member, President, Admin, and Master.
 
+## Production stack
+
+- Domain: `ybngo.my` on Namecheap
+- Hosting: Vercel
+- Database: Supabase Postgres
+- Authentication: Supabase Auth
+- Storage: Supabase Storage
+- Email: Resend
+- Maps: Google Maps
+- Payments: Stripe with FPX and cards
+- AI: OpenAI API
+
 ## Platform architecture
 
 ```text
@@ -24,11 +36,13 @@ Next.js Application and API Layer
         `-- Reporting and Analytics
         |
         v
-PostgreSQL + Secure File Storage
+Supabase Postgres + Supabase Storage
         |
-        |-- MyDigital ID
-        |-- Payment Gateway
-        |-- Email / WhatsApp / Telegram
+        |-- Supabase Auth
+        |-- Stripe Payments
+        |-- Resend Email
+        |-- Google Maps
+        |-- OpenAI API
         `-- Government Open Data APIs
 ```
 
@@ -46,6 +60,29 @@ PostgreSQL + Secure File Storage
 - Next.js dashboard UI
 - Express API backed by Prisma/PostgreSQL
 - Platform module models for NGOs, programmes, volunteers, cases, grants, reports, and secure files
+- Production integration helpers for Supabase, Resend, Stripe, Google Maps, and OpenAI
+
+## Vercel environment variables
+
+Add these in Vercel Project Settings -> Environment Variables:
+
+```text
+NEXT_PUBLIC_SITE_URL=https://ybngo.my
+WEB_ORIGIN=https://ybngo.my
+DATABASE_URL=your-supabase-connection-string
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+SUPABASE_STORAGE_BUCKET=documents
+RESEND_API_KEY=your-resend-key
+RESEND_FROM_EMAIL=YB NGO <noreply@ybngo.my>
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-browser-maps-key
+GOOGLE_MAPS_API_KEY=your-server-maps-key
+STRIPE_SECRET_KEY=your-stripe-secret-key
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your-stripe-publishable-key
+STRIPE_WEBHOOK_SECRET=your-stripe-webhook-secret
+OPENAI_API_KEY=your-openai-api-key
+```
 
 ## Demo login
 
