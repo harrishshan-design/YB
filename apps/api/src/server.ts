@@ -1,9 +1,12 @@
+import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { z } from "zod";
 import { getDb } from "./db";
+import { hashPassword, requireAuth, requireRole, signToken, verifyPassword, verifyToken } from "./auth";
 
 const app = express();
 const server = createServer(app);
@@ -16,6 +19,21 @@ const io = new Server(server, {
 const db = getDb();
 const port = Number(process.env.PORT ?? 4000);
 
+// Fields safe to return to clients. Never spread a raw Prisma User record into a
+// response — it carries passwordHash.
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  points: true,
+  avatarUrl: true,
+  joinedAt: true,
+  isActive: true,
+  inviteCode: true,
+  invitedById: true
+} as const;
+
 app.use(cors({ origin: process.env.WEB_ORIGIN ?? "http://localhost:3000" }));
 app.use(express.json());
 
@@ -23,14 +41,41 @@ app.get("/health", (_request, response) => {
   response.json({ ok: true, service: "ngo-api" });
 });
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.post("/auth/login", loginLimiter, async (request, response) => {
+  const body = z.object({
+    email: z.string().email(),
+    password: z.string().min(1)
+  }).parse(request.body);
+
+  const user = await db.user.findUnique({ where: { email: body.email } });
+  const valid = user ? await verifyPassword(body.password, user.passwordHash) : false;
+
+  if (!user || !valid || !user.isActive) {
+    response.status(401).json({ message: "Invalid email or password" });
+    return;
+  }
+
+  const token = signToken({ id: user.id, role: user.role });
+  response.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+app.use(requireAuth);
+
 app.get("/dashboard/summary", async (_request, response) => {
   const [members, board, pendingApprovals, announcements, meetings, leaderboard] = await Promise.all([
     db.user.count({ where: { role: "MEMBER", isActive: true } }),
     db.user.count({ where: { role: "BOARD", isActive: true } }),
     db.approval.count({ where: { status: "PENDING" } }),
-    db.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 5, include: { createdBy: true } }),
+    db.announcement.findMany({ orderBy: { createdAt: "desc" }, take: 5, include: { createdBy: { select: userSelect } } }),
     db.meeting.findMany({ orderBy: { startsAt: "asc" }, take: 5, include: { attendance: true } }),
-    db.user.findMany({ where: { role: "MEMBER" }, orderBy: { points: "desc" }, take: 10 })
+    db.user.findMany({ where: { role: "MEMBER" }, orderBy: { points: "desc" }, take: 10, select: userSelect })
   ]);
 
   response.json({ members, board, pendingApprovals, announcements, meetings, leaderboard });
@@ -40,9 +85,10 @@ app.get("/members", async (_request, response) => {
   const members = await db.user.findMany({
     where: { role: "MEMBER" },
     orderBy: [{ points: "desc" }, { name: "asc" }],
-    include: {
-      invitedBy: true,
-      invitedMembers: true,
+    select: {
+      ...userSelect,
+      invitedBy: { select: userSelect },
+      invitedMembers: { select: userSelect },
       activity: { orderBy: { createdAt: "desc" }, take: 3 }
     }
   });
@@ -54,16 +100,41 @@ app.post("/members", async (request, response) => {
   const body = z.object({
     name: z.string().min(2),
     email: z.string().email(),
+    password: z.string().min(8),
     role: z.enum(["ADMIN", "BOARD", "MEMBER"]).default("MEMBER"),
     invitedById: z.string().optional()
   }).parse(request.body);
 
+  const actor = request.user!;
+
+  // Members may only add people under their own circle, and cannot self-elevate roles.
+  if (actor.role === "MEMBER") {
+    if (body.role !== "MEMBER") {
+      response.status(403).json({ message: "Only admins can assign board or admin roles" });
+      return;
+    }
+    if (body.invitedById && body.invitedById !== actor.id) {
+      response.status(403).json({ message: "Members can only add people under their own circle" });
+      return;
+    }
+    body.invitedById = actor.id;
+  }
+
+  const passwordHash = await hashPassword(body.password);
   const member = await db.user.create({
     data: {
-      ...body,
+      name: body.name,
+      email: body.email,
+      role: body.role,
+      invitedById: body.invitedById,
+      passwordHash,
       inviteCode: `YC-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
     },
-    include: { invitedBy: true, invitedMembers: true }
+    select: {
+      ...userSelect,
+      invitedBy: { select: userSelect },
+      invitedMembers: { select: userSelect }
+    }
   });
 
   if (body.invitedById) {
@@ -82,12 +153,13 @@ app.post("/members", async (request, response) => {
 app.get("/members/:id/circle", async (request, response) => {
   const member = await db.user.findUnique({
     where: { id: request.params.id },
-    include: {
+    select: {
+      ...userSelect,
       invitedMembers: {
         orderBy: { joinedAt: "desc" },
-        include: { invitedMembers: true }
+        select: { ...userSelect, invitedMembers: { select: userSelect } }
       },
-      invitedBy: true
+      invitedBy: { select: userSelect }
     }
   });
 
@@ -102,31 +174,39 @@ app.get("/members/:id/circle", async (request, response) => {
 app.get("/announcements", async (_request, response) => {
   const announcements = await db.announcement.findMany({
     orderBy: { createdAt: "desc" },
-    include: { createdBy: true, approval: true }
+    include: { createdBy: { select: userSelect }, approval: true }
   });
 
   response.json(announcements);
 });
 
-app.post("/announcements", async (request, response) => {
+app.post("/announcements", requireRole("ADMIN", "BOARD"), async (request, response) => {
   const body = z.object({
     title: z.string().min(3),
     content: z.string().min(10),
     category: z.enum(["EVENTS", "URGENT", "OPPORTUNITIES"]),
-    createdById: z.string(),
     publishNow: z.boolean().default(false)
   }).parse(request.body);
+
+  const actor = request.user!;
 
   const announcement = await db.announcement.create({
     data: {
       title: body.title,
       content: body.content,
       category: body.category,
-      createdById: body.createdById,
+      createdById: actor.id,
       publishedAt: body.publishNow ? new Date() : null,
-      approval: { create: { type: "announcement", status: body.publishNow ? "APPROVED" : "PENDING" } }
+      approval: {
+        create: {
+          type: "announcement",
+          status: body.publishNow ? "APPROVED" : "PENDING",
+          reviewerId: body.publishNow ? actor.id : undefined,
+          reviewedAt: body.publishNow ? new Date() : undefined
+        }
+      }
     },
-    include: { createdBy: true, approval: true }
+    include: { createdBy: { select: userSelect }, approval: true }
   });
 
   io.to("announcements").emit("announcement:new", announcement);
@@ -143,7 +223,7 @@ app.get("/rewards/leaderboard", async (request, response) => {
     take: 10
   });
 
-  const users = await db.user.findMany({ where: { id: { in: leaderboard.map((entry) => entry.userId) } } });
+  const users = await db.user.findMany({ where: { id: { in: leaderboard.map((entry) => entry.userId) } }, select: userSelect });
   const ranked = leaderboard.map((entry, index) => ({
     rank: index + 1,
     points: entry._sum.points ?? 0,
@@ -153,7 +233,7 @@ app.get("/rewards/leaderboard", async (request, response) => {
   response.json(ranked);
 });
 
-app.post("/rewards", async (request, response) => {
+app.post("/rewards", requireRole("ADMIN", "BOARD"), async (request, response) => {
   const body = z.object({
     userId: z.string(),
     points: z.number().int().positive(),
@@ -176,13 +256,13 @@ app.post("/rewards", async (request, response) => {
 app.get("/meetings", async (_request, response) => {
   const meetings = await db.meeting.findMany({
     orderBy: { startsAt: "asc" },
-    include: { attendance: { include: { user: true } } }
+    include: { attendance: { include: { user: { select: userSelect } } } }
   });
 
   response.json(meetings);
 });
 
-app.post("/meetings", async (request, response) => {
+app.post("/meetings", requireRole("ADMIN", "BOARD"), async (request, response) => {
   const body = z.object({
     title: z.string().min(3),
     agenda: z.string().min(5),
@@ -211,7 +291,7 @@ app.post("/meetings", async (request, response) => {
   response.status(201).json(meeting);
 });
 
-app.get("/approvals", async (_request, response) => {
+app.get("/approvals", requireRole("ADMIN", "BOARD"), async (_request, response) => {
   const approvals = await db.approval.findMany({
     where: { status: "PENDING" },
     orderBy: { createdAt: "asc" },
@@ -221,26 +301,64 @@ app.get("/approvals", async (_request, response) => {
   response.json(approvals);
 });
 
-app.patch("/approvals/:id", async (request, response) => {
+app.patch("/approvals/:id", requireRole("ADMIN", "BOARD"), async (request, response) => {
   const body = z.object({
     status: z.enum(["APPROVED", "REJECTED"]),
-    reviewerId: z.string(),
     note: z.string().optional()
   }).parse(request.body);
 
   const approval = await db.approval.update({
-    where: { id: request.params.id },
-    data: { status: body.status, reviewerId: body.reviewerId, note: body.note, reviewedAt: new Date() }
+    where: { id: String(request.params.id) },
+    data: { status: body.status, reviewerId: request.user!.id, note: body.note, reviewedAt: new Date() }
   });
 
   response.json(approval);
 });
 
+app.get("/messages", requireRole("ADMIN", "BOARD"), async (request, response) => {
+  const channel = typeof request.query.channel === "string" ? request.query.channel : "general";
+  const messages = await db.message.findMany({
+    where: { channel },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+    include: { sender: { select: userSelect } }
+  });
+
+  response.json(messages);
+});
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  const user = typeof token === "string" ? verifyToken(token) : null;
+
+  if (!user) {
+    next(new Error("Authentication required"));
+    return;
+  }
+
+  socket.data.user = user;
+  next();
+});
+
 io.on("connection", (socket) => {
   socket.on("join:announcements", () => socket.join("announcements"));
-  socket.on("join:board", (channel: string = "general") => socket.join(`board:${channel}`));
-  socket.on("board:message", async (payload: { senderId: string; channel: string; message: string }) => {
-    const message = await db.message.create({ data: payload, include: { sender: true } });
+
+  socket.on("join:board", (channel: string = "general") => {
+    if (socket.data.user.role !== "ADMIN" && socket.data.user.role !== "BOARD") {
+      return;
+    }
+    socket.join(`board:${channel}`);
+  });
+
+  socket.on("board:message", async (payload: { channel: string; message: string }) => {
+    if (socket.data.user.role !== "ADMIN" && socket.data.user.role !== "BOARD") {
+      return;
+    }
+
+    const message = await db.message.create({
+      data: { senderId: socket.data.user.id, channel: payload.channel, message: payload.message },
+      include: { sender: { select: userSelect } }
+    });
     io.to(`board:${payload.channel}`).emit("board:message", message);
   });
 });

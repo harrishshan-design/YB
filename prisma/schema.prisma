@@ -86,6 +86,7 @@ model User {
   id             String              @id @default(cuid())
   name           String
   email          String              @unique
+  passwordHash   String              @map("password_hash")
   role           Role                @default(MEMBER)
   points         Int                 @default(0)
   avatarUrl      String?

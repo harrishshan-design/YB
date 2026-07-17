@@ -1,12 +1,19 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// Dev-only seed credentials. Every seeded account shares this password locally;
+// never reuse this seed against a real deployment.
+const SEED_PASSWORD = "ChangeMe123!";
+
 async function main() {
+  const passwordHash = await bcrypt.hash(SEED_PASSWORD, 12);
+
   const admin = await prisma.user.upsert({
     where: { email: "admin@ngo.local" },
     update: {},
-    create: { name: "Super Admin", email: "admin@ngo.local", role: "ADMIN", points: 0 }
+    create: { name: "Super Admin", email: "admin@ngo.local", role: "ADMIN", points: 0, passwordHash }
   });
 
   const boardMembers = await Promise.all(
@@ -14,7 +21,7 @@ async function main() {
       prisma.user.upsert({
         where: { email: `board${index + 1}@ngo.local` },
         update: {},
-        create: { name, email: `board${index + 1}@ngo.local`, role: "BOARD" }
+        create: { name, email: `board${index + 1}@ngo.local`, role: "BOARD", passwordHash }
       })
     )
   );
@@ -29,7 +36,8 @@ async function main() {
           email: `${name.toLowerCase()}@members.local`,
           role: "MEMBER",
           points: 40 + index * 12,
-          invitedById: index > 2 ? undefined : admin.id
+          invitedById: index > 2 ? undefined : admin.id,
+          passwordHash
         }
       })
     )
@@ -82,6 +90,8 @@ async function main() {
       })
     )
   );
+
+  console.log(`Seed complete. All seeded accounts use password: ${SEED_PASSWORD}`);
 }
 
 main()

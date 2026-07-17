@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   Bell,
@@ -16,6 +16,7 @@ import {
   Globe2,
   HeartHandshake,
   Landmark,
+  LogOut,
   Megaphone,
   MessageSquareText,
   Plus,
@@ -29,44 +30,35 @@ import {
   WalletCards,
   X
 } from "lucide-react";
+import type { Socket } from "socket.io-client";
+import { api, ApiError, clearSession, getStoredToken, getStoredUser } from "@/lib/api";
+import { connectSocket, disconnectSocket } from "@/lib/socket";
+import type {
+  Announcement,
+  AnnouncementCategory,
+  ApiUser,
+  Approval,
+  AuthUser,
+  BoardMessage,
+  DashboardSummary,
+  LeaderboardEntry,
+  Meeting,
+  Role
+} from "@/lib/types";
+import LoginScreen from "@/components/LoginScreen";
 
-type AnnouncementCategory = "All" | "Events" | "Urgent" | "Opportunities";
+type AnnouncementFilter = "All" | AnnouncementCategory;
 
-type Member = {
-  id: string;
-  name: string;
-  points: number;
-  invitedById?: string;
+const CATEGORY_META: Record<AnnouncementCategory, { label: string; tone: string }> = {
+  EVENTS: { label: "Events", tone: "green" },
+  URGENT: { label: "Urgent", tone: "red" },
+  OPPORTUNITIES: { label: "Opportunities", tone: "blue" }
 };
 
-const initialMembers: Member[] = [
-  { id: "nadia", name: "Nadia", points: 182 },
-  { id: "ethan", name: "Ethan", points: 176 },
-  { id: "irfan", name: "Irfan", points: 164 },
-  { id: "leah", name: "Leah", points: 151, invitedById: "nadia" },
-  { id: "arjun", name: "Arjun", points: 147, invitedById: "nadia" },
-  { id: "chloe", name: "Chloe", points: 139, invitedById: "ethan" },
-  { id: "ravi", name: "Ravi", points: 132, invitedById: "irfan" },
-  { id: "maya", name: "Maya", points: 126, invitedById: "leah" },
-  { id: "yusuf", name: "Yusuf", points: 119, invitedById: "arjun" },
-  { id: "grace", name: "Grace", points: 111, invitedById: "chloe" }
-];
-
-const initialAnnouncements = [
-  { title: "Community Service Saturday", category: "Events", tone: "green", detail: "Registration closes Thursday, 8:00 PM." },
-  { title: "Scholarship briefing moved earlier", category: "Urgent", tone: "red", detail: "New start time is 6:30 PM in the main hall." },
-  { title: "Youth leadership applications open", category: "Opportunities", tone: "blue", detail: "Members can apply until May 18." }
-];
-
-const initialApprovals = [
-  { title: "Publish volunteer drive announcement", type: "Announcement", owner: "Admin Office", status: "Pending" },
-  { title: "Approve May sports day reward pool", type: "Rewards", owner: "Youth Programs", status: "Pending" },
-  { title: "Confirm community partner event", type: "Event", owner: "Partnerships", status: "Pending" }
-];
-
-const meetings = [
-  { title: "May Board Planning", time: "May 8, 7:30 PM", detail: "Agenda, approvals, monthly winners" },
-  { title: "Event Safety Review", time: "May 12, 8:00 PM", detail: "Volunteer roles and risk checklist" }
+const CHAT_CHANNELS = [
+  { id: "general", label: "General" },
+  { id: "meetings", label: "Meetings" },
+  { id: "decisions", label: "Decisions" }
 ];
 
 const platformSurfaces = [
@@ -114,100 +106,263 @@ const quickActions = [
   { title: "Send a message", detail: "Write to the board or committee.", icon: MessageSquareText, section: "chat" }
 ];
 
+function toDateTimeLocalIso(value: string) {
+  return new Date(value).toISOString();
+}
+
 export default function Home() {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [members, setMembers] = useState<ApiUser[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [chatMessages, setChatMessages] = useState<Record<string, BoardMessage[]>>({});
+
   const [activeSection, setActiveSection] = useState("dashboard");
-  const [announcementFilter, setAnnouncementFilter] = useState<AnnouncementCategory>("All");
-  const [members, setMembers] = useState(initialMembers);
-  const [selectedMemberId, setSelectedMemberId] = useState("nadia");
-  const [approvals, setApprovals] = useState(initialApprovals);
-  const [announcements, setAnnouncements] = useState(initialAnnouncements);
-  const [chatChannel, setChatChannel] = useState("General");
+  const [announcementFilter, setAnnouncementFilter] = useState<AnnouncementFilter>("All");
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [chatChannel, setChatChannel] = useState("general");
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState([
-    { channel: "General", mine: false, title: "General", detail: "Please review the event approval before Friday." },
-    { channel: "Decisions", mine: true, title: "Decisions", detail: "Reward allocation is ready for vote." },
-    { channel: "Meetings", mine: false, title: "Meetings", detail: "Minutes upload slot added to each meeting." }
-  ]);
-  const [modal, setModal] = useState<"announcement" | "member" | null>(null);
+  const [modal, setModal] = useState<"announcement" | "member" | "meeting" | null>(null);
   const [toast, setToast] = useState("Ready");
 
-  const selectedMember = members.find((member) => member.id === selectedMemberId) ?? members[0];
+  const socketRef = useRef<Socket | null>(null);
+  const isPrivileged = authUser?.role === "ADMIN" || authUser?.role === "BOARD";
+
+  useEffect(() => {
+    setAuthUser(getStoredUser());
+    setAuthChecked(true);
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
+    const user = authUser;
+    let cancelled = false;
+
+    async function loadInitialData() {
+      setDataLoading(true);
+      try {
+        const [summary, memberList, announcementList, meetingList, leaderboardList] = await Promise.all([
+          api.dashboardSummary(),
+          api.members(),
+          api.announcements(),
+          api.meetings(),
+          api.leaderboard()
+        ]);
+        if (cancelled) return;
+
+        setDashboard(summary);
+        setMembers(memberList);
+        setAnnouncements(announcementList);
+        setMeetings(meetingList);
+        setLeaderboard(leaderboardList);
+        setSelectedMemberId((current) => current ?? memberList[0]?.id ?? null);
+
+        if (user.role !== "MEMBER") {
+          const approvalList = await api.approvals();
+          if (!cancelled) setApprovals(approvalList);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setToast(err instanceof ApiError ? err.message : "Could not load data from the server.");
+        }
+      } finally {
+        if (!cancelled) setDataLoading(false);
+      }
+    }
+
+    loadInitialData();
+
+    const token = getStoredToken();
+    if (token) {
+      const socket = connectSocket(token);
+      socketRef.current = socket;
+      socket.emit("join:announcements");
+
+      socket.on("announcement:new", (announcement: Announcement) => {
+        setAnnouncements((current) => [announcement, ...current.filter((item) => item.id !== announcement.id)]);
+      });
+
+      socket.on("board:message", (message: BoardMessage) => {
+        setChatMessages((current) => ({
+          ...current,
+          [message.channel]: [...(current[message.channel] ?? []), message]
+        }));
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      disconnectSocket();
+      socketRef.current = null;
+    };
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser || authUser.role === "MEMBER") return;
+
+    socketRef.current?.emit("join:board", chatChannel);
+
+    if (chatMessages[chatChannel]) return;
+
+    let cancelled = false;
+    api.messages(chatChannel)
+      .then((history) => {
+        if (!cancelled) setChatMessages((current) => ({ ...current, [chatChannel]: history }));
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser, chatChannel]);
+
+  const selectedMember = useMemo(
+    () => members.find((member) => member.id === selectedMemberId) ?? members[0] ?? null,
+    [members, selectedMemberId]
+  );
+
   const filteredAnnouncements = announcementFilter === "All"
     ? announcements
     : announcements.filter((item) => item.category === announcementFilter);
 
-  const leaderboard = useMemo(
-    () => [...members].sort((a, b) => b.points - a.points).slice(0, 10),
-    [members]
-  );
+  const directMembers = selectedMember
+    ? members.filter((member) => member.invitedById === selectedMember.id)
+    : [];
 
-  const directMembers = members.filter((member) => member.invitedById === selectedMember.id);
-  const stats = [
-    { label: "Active members", value: String(members.length + 238), icon: Users },
-    { label: "Board members", value: "7", icon: Crown },
-    { label: "Pending approvals", value: String(approvals.filter((approval) => approval.status === "Pending").length), icon: CheckCircle2 },
-    { label: "Monthly engagement", value: "84%", icon: Gauge }
-  ];
+  const recentAnnouncements = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return announcements.filter((item) => new Date(item.createdAt).getTime() >= cutoff).length;
+  }, [announcements]);
+
+  const stats = dashboard
+    ? [
+        { label: "Active members", value: String(dashboard.members), icon: Users },
+        { label: "Board members", value: String(dashboard.board), icon: Crown },
+        { label: "Pending approvals", value: String(dashboard.pendingApprovals), icon: CheckCircle2 },
+        { label: "Announcements this week", value: String(recentAnnouncements), icon: Gauge }
+      ]
+    : [];
 
   function scrollToSection(sectionId: string) {
     setActiveSection(sectionId);
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function handleAnnouncementSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleLogout() {
+    disconnectSocket();
+    clearSession();
+    setAuthUser(null);
+    setDashboard(null);
+    setMembers([]);
+    setAnnouncements([]);
+    setMeetings([]);
+    setApprovals([]);
+    setLeaderboard([]);
+    setChatMessages({});
+    setSelectedMemberId(null);
+    setToast("Ready");
+  }
+
+  async function handleAnnouncementSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const category = String(form.get("category")) as "Events" | "Urgent" | "Opportunities";
-    setAnnouncements((current) => [
-      {
+    const publishNow = form.get("publishNow") === "on";
+
+    try {
+      await api.createAnnouncement({
         title: String(form.get("title")),
-        detail: String(form.get("content")),
-        category,
-        tone: category === "Urgent" ? "red" : category === "Opportunities" ? "blue" : "green"
-      },
-      ...current
-    ]);
-    setModal(null);
-    setToast("Announcement queued for board approval");
-    event.currentTarget.reset();
+        content: String(form.get("content")),
+        category: String(form.get("category")) as AnnouncementCategory,
+        publishNow
+      });
+      setModal(null);
+      setToast(publishNow ? "Announcement published" : "Announcement queued for board approval");
+      event.currentTarget.reset();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.message : "Could not create the announcement.");
+    }
   }
 
-  function handleMemberSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleMemberSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const parentId = String(form.get("parentId"));
-    const name = String(form.get("name"));
-    setMembers((current) => [
-      ...current,
-      {
-        id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now(),
-        name,
-        points: 0,
-        invitedById: parentId
-      }
-    ]);
-    setSelectedMemberId(parentId);
-    setModal(null);
-    setToast(`${name} added to the member circle`);
-    event.currentTarget.reset();
+
+    try {
+      const member = await api.addMember({
+        name: String(form.get("name")),
+        email: String(form.get("email")),
+        password: String(form.get("password")),
+        role: isPrivileged ? (String(form.get("role")) as Role) : undefined,
+        invitedById: isPrivileged ? String(form.get("parentId")) : undefined
+      });
+      setMembers((current) => [...current, member]);
+      setSelectedMemberId(member.invitedById ?? member.id);
+      setModal(null);
+      setToast(`${member.name} added to the member circle`);
+      event.currentTarget.reset();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.message : "Could not add the member.");
+    }
   }
 
-  function updateApproval(index: number, status: "Approved" | "Rejected") {
-    setApprovals((current) => current.map((approval, approvalIndex) => (
-      approvalIndex === index ? { ...approval, status } : approval
-    )));
-    setToast(`Approval ${status.toLowerCase()}`);
+  async function handleMeetingSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const location = String(form.get("location") ?? "").trim();
+    const meetUrl = String(form.get("meetUrl") ?? "").trim();
+
+    try {
+      const meeting = await api.createMeeting({
+        title: String(form.get("title")),
+        agenda: String(form.get("agenda")),
+        startsAt: toDateTimeLocalIso(String(form.get("startsAt"))),
+        endsAt: toDateTimeLocalIso(String(form.get("endsAt"))),
+        location: location || undefined,
+        meetUrl: meetUrl || undefined
+      });
+      setMeetings((current) => [...current, meeting].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
+      setModal(null);
+      setToast("Meeting scheduled");
+      event.currentTarget.reset();
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.message : "Could not schedule the meeting.");
+    }
+  }
+
+  async function updateApproval(id: string, status: "APPROVED" | "REJECTED") {
+    try {
+      await api.updateApproval(id, { status });
+      setApprovals((current) => current.filter((approval) => approval.id !== id));
+      const summary = await api.dashboardSummary().catch(() => null);
+      if (summary) setDashboard(summary);
+      setToast(`Approval ${status.toLowerCase()}`);
+    } catch (err) {
+      setToast(err instanceof ApiError ? err.message : "Could not update the approval.");
+    }
   }
 
   function sendMessage() {
-    if (!chatInput.trim()) return;
-    setChatMessages((current) => [
-      ...current,
-      { channel: chatChannel, mine: true, title: chatChannel, detail: chatInput.trim() }
-    ]);
+    if (!chatInput.trim() || !socketRef.current) return;
+    socketRef.current.emit("board:message", { channel: chatChannel, message: chatInput.trim() });
     setChatInput("");
-    setToast("Message sent");
   }
+
+  if (!authChecked) {
+    return <main className="login-shell"><p className="brand-subtitle">Loading...</p></main>;
+  }
+
+  if (!authUser) {
+    return <LoginScreen onLogin={setAuthUser} />;
+  }
+
+  const channelMessages = chatMessages[chatChannel] ?? [];
 
   return (
     <main className="app-shell">
@@ -237,6 +392,14 @@ export default function Home() {
           <h3>Big buttons, clear steps</h3>
           <p className="brand-subtitle">Designed so members, citizens, staff, and elderly users can use it without training.</p>
         </button>
+
+        <div className="sidebar-user">
+          <div>
+            <strong>{authUser.name}</strong>
+            <span className="meta">{authUser.role}</span>
+          </div>
+          <button className="icon-button" onClick={handleLogout} aria-label="Sign out"><LogOut size={16} /></button>
+        </div>
       </aside>
 
       <section className="main">
@@ -267,13 +430,17 @@ export default function Home() {
         </section>
 
         <section className="stats-grid" aria-label="System metrics">
-          {stats.map((stat) => (
-            <button className="card metric clickable" key={stat.label} onClick={() => setToast(`${stat.label}: ${stat.value}`)}>
-              <stat.icon size={22} color="#236c4a" />
-              <div className="metric-value">{stat.value}</div>
-              <div className="metric-label">{stat.label}</div>
-            </button>
-          ))}
+          {dataLoading && !dashboard ? (
+            <p className="meta">Loading system metrics...</p>
+          ) : (
+            stats.map((stat) => (
+              <button className="card metric clickable" key={stat.label} onClick={() => setToast(`${stat.label}: ${stat.value}`)}>
+                <stat.icon size={22} color="#236c4a" />
+                <div className="metric-value">{stat.value}</div>
+                <div className="metric-label">{stat.label}</div>
+              </button>
+            ))
+          )}
         </section>
 
         <section className="dashboard-grid" id="architecture">
@@ -327,27 +494,32 @@ export default function Home() {
           <div className="card">
             <div className="card-header">
               <h2 className="card-title">News and Announcements</h2>
-              <button className="badge green badge-button" onClick={() => setToast("Members receive published announcements instantly")}><Bell size={12} /> Send to all</button>
+              {isPrivileged ? (
+                <button className="badge green badge-button" onClick={() => setModal("announcement")}><Bell size={12} /> New announcement</button>
+              ) : (
+                <span className="badge green">Read only</span>
+              )}
             </div>
             <div className="card-body list">
               <div className="tabs">
-                {(["All", "Events", "Urgent", "Opportunities"] as AnnouncementCategory[]).map((category) => (
+                {(["All", "EVENTS", "URGENT", "OPPORTUNITIES"] as AnnouncementFilter[]).map((filter) => (
                   <button
-                    className={`tab ${announcementFilter === category ? "active" : ""}`}
-                    key={category}
-                    onClick={() => setAnnouncementFilter(category)}
+                    className={`tab ${announcementFilter === filter ? "active" : ""}`}
+                    key={filter}
+                    onClick={() => setAnnouncementFilter(filter)}
                   >
-                    {category}
+                    {filter === "All" ? "All" : CATEGORY_META[filter].label}
                   </button>
                 ))}
               </div>
+              {filteredAnnouncements.length === 0 && <p className="meta">No announcements yet.</p>}
               {filteredAnnouncements.map((item) => (
-                <button className="row row-button" key={item.title} onClick={() => setToast(`${item.title} opened`)}>
+                <button className="row row-button" key={item.id} onClick={() => setToast(`${item.title} opened`)}>
                   <div>
                     <strong>{item.title}</strong>
-                    <span className="meta">{item.detail}</span>
+                    <span className="meta">{item.content}</span>
                   </div>
-                  <span className={`badge ${item.tone}`}>{item.category}</span>
+                  <span className={`badge ${CATEGORY_META[item.category].tone}`}>{CATEGORY_META[item.category].label}</span>
                 </button>
               ))}
             </div>
@@ -356,15 +528,22 @@ export default function Home() {
           <div className="card" id="rewards">
             <div className="card-header">
               <h2 className="card-title">Member Points</h2>
-              <button className="badge gold badge-button" onClick={() => setToast("Leaderboard is calculated per reward month")}>May 2026</button>
+              <span className="badge gold">This month</span>
             </div>
             <div className="card-body">
-              {leaderboard.map((member, index) => (
-                <button className="leader-row leader-button" key={member.id} onClick={() => setSelectedMemberId(member.id)}>
-                  <span className="rank">{index + 1}</span>
-                  <strong>{member.name}</strong>
-                  <span className="meta">{member.points} pts</span>
-                </button>
+              {leaderboard.length === 0 && <p className="meta">No points awarded yet.</p>}
+              {leaderboard.map((entry) => (
+                entry.user && (
+                  <button
+                    className="leader-row leader-button"
+                    key={entry.user.id}
+                    onClick={() => setSelectedMemberId(entry.user!.id)}
+                  >
+                    <span className="rank">{entry.rank}</span>
+                    <strong>{entry.user.name}</strong>
+                    <span className="meta">{entry.points} pts</span>
+                  </button>
+                )
               ))}
             </div>
           </div>
@@ -377,16 +556,18 @@ export default function Home() {
               <CheckCircle2 size={20} color="#236c4a" />
             </div>
             <div className="card-body list">
-              {approvals.map((approval, index) => (
-                <div className="row" key={approval.title}>
-                  <button className="plain-row" onClick={() => setToast(`${approval.title} selected`)}>
-                    <strong>{approval.title}</strong>
-                    <span className="meta">{approval.owner}</span>
+              {!isPrivileged && <p className="meta">Only admins and board members can review approvals.</p>}
+              {isPrivileged && approvals.length === 0 && <p className="meta">Nothing waiting for approval.</p>}
+              {isPrivileged && approvals.map((approval) => (
+                <div className="row" key={approval.id}>
+                  <button className="plain-row" onClick={() => setToast(`${approval.type} selected`)}>
+                    <strong>{approval.type === "announcement" ? "Announcement" : approval.type}</strong>
+                    <span className="meta">Submitted {new Date(approval.createdAt).toLocaleDateString()}</span>
                   </button>
                   <div className="inline-actions">
-                    <span className={`badge ${approval.status === "Pending" ? "blue" : approval.status === "Approved" ? "green" : "red"}`}>{approval.status}</span>
-                    <button className="icon-button" onClick={() => updateApproval(index, "Approved")} aria-label={`Approve ${approval.title}`}><Check size={16} /></button>
-                    <button className="icon-button" onClick={() => updateApproval(index, "Rejected")} aria-label={`Reject ${approval.title}`}><X size={16} /></button>
+                    <span className="badge blue">Pending</span>
+                    <button className="icon-button" onClick={() => updateApproval(approval.id, "APPROVED")} aria-label="Approve"><Check size={16} /></button>
+                    <button className="icon-button" onClick={() => updateApproval(approval.id, "REJECTED")} aria-label="Reject"><X size={16} /></button>
                   </div>
                 </div>
               ))}
@@ -396,16 +577,19 @@ export default function Home() {
           <div className="card" id="meetings">
             <div className="card-header">
               <h2 className="card-title">Meetings</h2>
-              <button className="icon-button" onClick={() => setToast("Meeting creation opened")} aria-label="Create meeting"><Plus size={16} /></button>
+              {isPrivileged && (
+                <button className="icon-button" onClick={() => setModal("meeting")} aria-label="Create meeting"><Plus size={16} /></button>
+              )}
             </div>
             <div className="card-body list">
+              {meetings.length === 0 && <p className="meta">No meetings scheduled.</p>}
               {meetings.map((meeting) => (
-                <button className="row row-button" key={meeting.title} onClick={() => setToast(`${meeting.title} attendance opened`)}>
+                <button className="row row-button" key={meeting.id} onClick={() => setToast(`${meeting.title} attendance opened`)}>
                   <div>
                     <strong>{meeting.title}</strong>
-                    <span className="meta">{meeting.detail}</span>
+                    <span className="meta">{meeting.agenda}</span>
                   </div>
-                  <span className="badge green">{meeting.time}</span>
+                  <span className="badge green">{new Date(meeting.startsAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
                 </button>
               ))}
             </div>
@@ -417,25 +601,37 @@ export default function Home() {
               <MessageSquareText size={20} color="#236c4a" />
             </div>
             <div className="card-body">
-              <div className="tabs compact-tabs">
-                {["General", "Meetings", "Decisions"].map((channel) => (
-                  <button className={`tab ${chatChannel === channel ? "active" : ""}`} key={channel} onClick={() => setChatChannel(channel)}>
-                    {channel}
-                  </button>
-                ))}
-              </div>
-              <div className="chat-preview">
-                {chatMessages.filter((message) => message.channel === chatChannel).map((message, index) => (
-                  <button className={`message ${message.mine ? "mine" : ""}`} key={`${message.detail}-${index}`} onClick={() => setToast(`${message.title} message selected`)}>
-                    <strong>{message.title}</strong>
-                    <div className="meta">{message.detail}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="composer">
-                <input value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder={`Message ${chatChannel}`} />
-                <button className="icon-button solid" onClick={sendMessage} aria-label="Send message"><Send size={16} /></button>
-              </div>
+              {!isPrivileged ? (
+                <p className="meta">Board chat is only visible to admins and board members.</p>
+              ) : (
+                <>
+                  <div className="tabs compact-tabs">
+                    {CHAT_CHANNELS.map((channel) => (
+                      <button className={`tab ${chatChannel === channel.id ? "active" : ""}`} key={channel.id} onClick={() => setChatChannel(channel.id)}>
+                        {channel.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="chat-preview">
+                    {channelMessages.length === 0 && <p className="meta">No messages yet.</p>}
+                    {channelMessages.map((message) => (
+                      <div className={`message ${message.senderId === authUser.id ? "mine" : ""}`} key={message.id}>
+                        <strong>{message.sender.name}</strong>
+                        <div className="meta">{message.message}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="composer">
+                    <input
+                      value={chatInput}
+                      onChange={(event) => setChatInput(event.target.value)}
+                      onKeyDown={(event) => event.key === "Enter" && sendMessage()}
+                      placeholder={`Message ${CHAT_CHANNELS.find((c) => c.id === chatChannel)?.label ?? chatChannel}`}
+                    />
+                    <button className="icon-button solid" onClick={sendMessage} aria-label="Send message"><Send size={16} /></button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </section>
@@ -447,41 +643,46 @@ export default function Home() {
               <button className="button" onClick={() => setModal("member")}><UserPlus size={18} /> Add under selected</button>
             </div>
             <div className="card-body hierarchy">
-              <div className="member-selector">
-                {members.slice(0, 6).map((member) => (
-                  <button className={`chip ${selectedMember.id === member.id ? "active" : ""}`} key={member.id} onClick={() => setSelectedMemberId(member.id)}>
-                    {member.name}
-                  </button>
-                ))}
-              </div>
-              <div className="tree">
-                <div className="tree-node root-node">
-                  <Crown size={18} />
-                  <div>
-                    <strong>{selectedMember.name}</strong>
-                    <span className="meta">Selected member</span>
+              {members.length === 0 && <p className="meta">No members yet.</p>}
+              {selectedMember && (
+                <>
+                  <div className="member-selector">
+                    {members.slice(0, 6).map((member) => (
+                      <button className={`chip ${selectedMember.id === member.id ? "active" : ""}`} key={member.id} onClick={() => setSelectedMemberId(member.id)}>
+                        {member.name}
+                      </button>
+                    ))}
                   </div>
-                </div>
-                <div className="tree-children">
-                  {directMembers.length > 0 ? directMembers.map((member) => (
-                    <button className="tree-node" key={member.id} onClick={() => setSelectedMemberId(member.id)}>
-                      <Users size={16} />
+                  <div className="tree">
+                    <div className="tree-node root-node">
+                      <Crown size={18} />
                       <div>
-                        <strong>{member.name}</strong>
-                        <span className="meta">{members.filter((child) => child.invitedById === member.id).length} connected</span>
+                        <strong>{selectedMember.name}</strong>
+                        <span className="meta">Selected member</span>
                       </div>
-                    </button>
-                  )) : (
-                    <button className="tree-node empty-node" onClick={() => setModal("member")}>
-                      <UserPlus size={16} />
-                      <div>
-                        <strong>Add first connected member</strong>
-                        <span className="meta">They will sit under {selectedMember.name}</span>
-                      </div>
-                    </button>
-                  )}
-                </div>
-              </div>
+                    </div>
+                    <div className="tree-children">
+                      {directMembers.length > 0 ? directMembers.map((member) => (
+                        <button className="tree-node" key={member.id} onClick={() => setSelectedMemberId(member.id)}>
+                          <Users size={16} />
+                          <div>
+                            <strong>{member.name}</strong>
+                            <span className="meta">{members.filter((child) => child.invitedById === member.id).length} connected</span>
+                          </div>
+                        </button>
+                      )) : (
+                        <button className="tree-node empty-node" onClick={() => setModal("member")}>
+                          <UserPlus size={16} />
+                          <div>
+                            <strong>Add first connected member</strong>
+                            <span className="meta">They will sit under {selectedMember.name}</span>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -491,53 +692,39 @@ export default function Home() {
               <ShieldCheck size={20} color="#236c4a" />
             </div>
             <div className="card-body list">
-              <button className="row row-button" onClick={() => setToast("Board member management opened")}>
-                <div><strong>Board members</strong><span className="meta">Add or remove the 7 board seats</span></div>
+              <button className="row row-button" onClick={() => setToast("Board member management is coming soon")}>
+                <div><strong>Board members</strong><span className="meta">Add or remove board seats</span></div>
                 <span className="badge green">Admin</span>
               </button>
-              <button className="row row-button" onClick={() => setToast("Activity monitor opened")}>
+              <button className="row row-button" onClick={() => setToast("Activity monitor is coming soon")}>
                 <div><strong>Activity monitor</strong><span className="meta">Track announcements, rewards, meetings, and member additions</span></div>
                 <span className="badge blue">Live</span>
               </button>
             </div>
           </div>
         </section>
-
-        <section className="three-grid">
-          <button className="card metric clickable" onClick={() => setAnnouncementFilter("Opportunities")}>
-            <Sparkles size={22} color="#b7791f" />
-            <div className="metric-value">3</div>
-            <div className="metric-label">Announcement categories</div>
-          </button>
-          <button className="card metric clickable" onClick={() => scrollToSection("rewards")}>
-            <Trophy size={22} color="#b7791f" />
-            <div className="metric-value">Auto</div>
-            <div className="metric-label">Monthly leaderboard</div>
-          </button>
-          <button className="card metric clickable" onClick={() => scrollToSection("admin")}>
-            <ShieldCheck size={22} color="#236c4a" />
-            <div className="metric-value">RBAC</div>
-            <div className="metric-label">Admin, board, and member roles</div>
-          </button>
-        </section>
       </section>
 
-      {modal === "announcement" && (
+      {modal === "announcement" && isPrivileged && (
         <div className="modal-backdrop" role="presentation">
           <form className="modal" onSubmit={handleAnnouncementSubmit}>
             <div className="modal-header">
               <h2>New Announcement</h2>
               <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close announcement form"><X size={16} /></button>
             </div>
-            <label>Title<input name="title" required placeholder="Announcement title" /></label>
+            <label>Title<input name="title" required minLength={3} placeholder="Announcement title" /></label>
             <label>Category
-              <select name="category" defaultValue="Events">
-                <option>Events</option>
-                <option>Urgent</option>
-                <option>Opportunities</option>
+              <select name="category" defaultValue="EVENTS">
+                <option value="EVENTS">Events</option>
+                <option value="URGENT">Urgent</option>
+                <option value="OPPORTUNITIES">Opportunities</option>
               </select>
             </label>
-            <label>Content<textarea name="content" required placeholder="Write the update" /></label>
+            <label>Content<textarea name="content" required minLength={10} placeholder="Write the update" /></label>
+            <label className="checkbox-label">
+              <input name="publishNow" type="checkbox" />
+              Publish immediately (skip board approval)
+            </label>
             <button className="button primary" type="submit"><Megaphone size={18} /> Submit</button>
           </form>
         </div>
@@ -552,14 +739,44 @@ export default function Home() {
             </div>
             <label>Name<input name="name" required placeholder="Member name" /></label>
             <label>Email<input name="email" required type="email" placeholder="member@email.com" /></label>
-            <label>Place under
-              <select name="parentId" defaultValue={selectedMember.id}>
-                {members.map((member) => (
-                  <option value={member.id} key={member.id}>{member.name}</option>
-                ))}
-              </select>
-            </label>
+            <label>Password<input name="password" required type="password" minLength={8} placeholder="At least 8 characters" /></label>
+            {isPrivileged && (
+              <>
+                <label>Role
+                  <select name="role" defaultValue="MEMBER">
+                    <option value="MEMBER">Member</option>
+                    <option value="BOARD">Board</option>
+                    <option value="ADMIN">Admin</option>
+                  </select>
+                </label>
+                <label>Place under
+                  <select name="parentId" defaultValue={selectedMember?.id}>
+                    {members.map((member) => (
+                      <option value={member.id} key={member.id}>{member.name}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
             <button className="button primary" type="submit"><UserPlus size={18} /> Add member</button>
+          </form>
+        </div>
+      )}
+
+      {modal === "meeting" && isPrivileged && (
+        <div className="modal-backdrop" role="presentation">
+          <form className="modal" onSubmit={handleMeetingSubmit}>
+            <div className="modal-header">
+              <h2>Schedule Meeting</h2>
+              <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close meeting form"><X size={16} /></button>
+            </div>
+            <label>Title<input name="title" required minLength={3} placeholder="Meeting title" /></label>
+            <label>Agenda<textarea name="agenda" required minLength={5} placeholder="What will be discussed" /></label>
+            <label>Starts<input name="startsAt" required type="datetime-local" /></label>
+            <label>Ends<input name="endsAt" required type="datetime-local" /></label>
+            <label>Location (optional)<input name="location" placeholder="Club office" /></label>
+            <label>Meeting link (optional)<input name="meetUrl" type="url" placeholder="https://" /></label>
+            <button className="button primary" type="submit"><CalendarDays size={18} /> Schedule</button>
           </form>
         </div>
       )}
