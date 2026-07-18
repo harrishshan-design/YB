@@ -10,7 +10,7 @@ export function getStripe() {
       throw new Error("Missing STRIPE_SECRET_KEY");
     }
 
-    stripe = new Stripe(secretKey);
+    stripe = new Stripe(secretKey, { apiVersion: "2026-06-24.dahlia" });
   }
 
   return stripe;

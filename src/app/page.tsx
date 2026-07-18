@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bell,
   CalendarDays,
@@ -19,122 +19,294 @@ import {
   Users,
   WalletCards
 } from "lucide-react";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import { ApiClientError, apiFetch } from "@/lib/api-client";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
-type Role = "member" | "president" | "admin" | "master";
+type Role = "MEMBER" | "PRESIDENT" | "ADMIN" | "MASTER";
 type View = "home" | "news" | "programmes" | "help" | "members" | "meetings" | "money" | "reports" | "admin";
 
-type Account = {
-  email: string;
-  password: string;
+type AppUser = {
+  id: string;
   name: string;
+  email: string;
   role: Role;
-  organisation: string;
+  points: number;
 };
 
-const accounts: Account[] = [
-  { email: "member@demo.com", password: "123456", name: "Nadia Member", role: "member", organisation: "Youth Club" },
-  { email: "president@demo.com", password: "123456", name: "Club President", role: "president", organisation: "Youth Club" },
-  { email: "admin@demo.com", password: "123456", name: "Operations Admin", role: "admin", organisation: "Youth Club" },
-  { email: "master@demo.com", password: "123456", name: "Master Account", role: "master", organisation: "Whole Platform" }
-];
+type Announcement = {
+  id: string;
+  title: string;
+  content: string;
+  category: "EVENTS" | "URGENT" | "OPPORTUNITIES";
+};
+
+type Programme = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+};
+
+type CaseItem = {
+  id: string;
+  title: string;
+  status: string;
+  assignedTo: { name: string } | null;
+};
+
+type Member = {
+  id: string;
+  name: string;
+  points: number;
+  invitedBy: { name: string } | null;
+};
+
+type Meeting = {
+  id: string;
+  title: string;
+  startsAt: string;
+};
+
+type Approval = {
+  id: string;
+  type: string;
+  announcement: { title: string } | null;
+  event: { title: string } | null;
+};
+
+type DashboardSummary = {
+  members: number;
+  pendingApprovals: number;
+  openCases: number;
+  openProgrammes: number;
+  volunteerHours: number;
+  money: { approvedBudget: number; expensesPending: number; grantApplications: number };
+};
 
 const roleLabels: Record<Role, string> = {
-  member: "Member",
-  president: "President",
-  admin: "Admin",
-  master: "Master"
+  MEMBER: "Member",
+  PRESIDENT: "President",
+  ADMIN: "Admin",
+  MASTER: "Master"
 };
 
+const demoAccounts: Array<{ email: string; role: Role }> = [
+  { email: "member@demo.com", role: "MEMBER" },
+  { email: "president@demo.com", role: "PRESIDENT" },
+  { email: "admin@demo.com", role: "ADMIN" },
+  { email: "master@demo.com", role: "MASTER" }
+];
+
 const allViews: Array<{ id: View; label: string; icon: React.ElementType; roles: Role[] }> = [
-  { id: "home", label: "Home", icon: Home, roles: ["member", "president", "admin", "master"] },
-  { id: "news", label: "News", icon: Bell, roles: ["member", "president", "admin", "master"] },
-  { id: "programmes", label: "Programmes", icon: CalendarDays, roles: ["member", "president", "admin", "master"] },
-  { id: "help", label: "Ask For Help", icon: HeartHandshake, roles: ["member", "admin", "master"] },
-  { id: "members", label: "Members", icon: Users, roles: ["member", "president", "admin", "master"] },
-  { id: "meetings", label: "Meetings", icon: MessageSquareText, roles: ["president", "admin", "master"] },
-  { id: "money", label: "Money", icon: WalletCards, roles: ["president", "admin", "master"] },
-  { id: "reports", label: "Reports", icon: FileText, roles: ["president", "admin", "master"] },
-  { id: "admin", label: "Settings", icon: ShieldCheck, roles: ["admin", "master"] }
+  { id: "home", label: "Home", icon: Home, roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "news", label: "News", icon: Bell, roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "programmes", label: "Programmes", icon: CalendarDays, roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "help", label: "Ask For Help", icon: HeartHandshake, roles: ["MEMBER", "ADMIN", "MASTER"] },
+  { id: "members", label: "Members", icon: Users, roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "meetings", label: "Meetings", icon: MessageSquareText, roles: ["PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "money", label: "Money", icon: WalletCards, roles: ["PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "reports", label: "Reports", icon: FileText, roles: ["PRESIDENT", "ADMIN", "MASTER"] },
+  { id: "admin", label: "Settings", icon: ShieldCheck, roles: ["ADMIN", "MASTER"] }
 ];
 
-const announcements = [
-  { title: "Community Service Saturday", detail: "Register before Thursday, 8:00 PM.", type: "Event" },
-  { title: "Scholarship briefing moved earlier", detail: "New start time is 6:30 PM.", type: "Urgent" },
-  { title: "Youth leadership applications open", detail: "Applications close on May 18.", type: "Opportunity" }
-];
-
-const programmes = [
-  { title: "Food Basket Support", detail: "Help prepare and deliver food baskets.", status: "Open" },
-  { title: "Community Service Saturday", detail: "Volunteer at the community hall.", status: "Open" },
-  { title: "Youth Mentorship", detail: "Pair mentors with younger members.", status: "Planning" }
-];
-
-const members = [
-  { name: "Nadia", points: 182, under: "Direct" },
-  { name: "Leah", points: 151, under: "Under Nadia" },
-  { name: "Maya", points: 126, under: "Under Leah" },
-  { name: "Arjun", points: 147, under: "Under Nadia" }
-];
+function canManage(role: Role) {
+  return role === "PRESIDENT" || role === "ADMIN" || role === "MASTER";
+}
 
 export default function HomePage() {
-  const [currentUser, setCurrentUser] = useState<Account | null>(null);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeView, setActiveView] = useState<View>("home");
-  const [error, setError] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [notice, setNotice] = useState("Welcome. Choose a task to begin.");
-  const [cases, setCases] = useState([{ title: "Need food assistance", status: "Open", owner: "Nadia Member" }]);
-  const [newMemberName, setNewMemberName] = useState("");
+
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
 
   const allowedViews = useMemo(() => {
     if (!currentUser) return [];
     return allViews.filter((view) => view.roles.includes(currentUser.role));
   }, [currentUser]);
 
-  function login(event: FormEvent<HTMLFormElement>) {
+  const loadProfile = useCallback(async () => {
+    try {
+      const { user } = await apiFetch<{ user: AppUser }>("/api/me");
+      setCurrentUser(user);
+    } catch {
+      setCurrentUser(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+
+    supabase.auth.getSession().then(async ({ data }: { data: { session: Session | null } }) => {
+      if (data.session) {
+        await loadProfile();
+      }
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      if (session) {
+        loadProfile();
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    apiFetch<DashboardSummary>("/api/dashboard/summary")
+      .then(setSummary)
+      .catch(() => {});
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    if (activeView === "news") {
+      apiFetch<Announcement[]>("/api/announcements").then(setAnnouncements).catch(() => {});
+    }
+    if (activeView === "programmes") {
+      apiFetch<Programme[]>("/api/programmes").then(setProgrammes).catch(() => {});
+    }
+    if (activeView === "help") {
+      apiFetch<CaseItem[]>("/api/cases").then(setCases).catch(() => {});
+    }
+    if (activeView === "members") {
+      apiFetch<Member[]>("/api/members").then(setMembers).catch(() => {});
+    }
+    if (activeView === "meetings") {
+      apiFetch<Meeting[]>("/api/meetings").then(setMeetings).catch(() => {});
+    }
+    if (activeView === "admin" && (currentUser.role === "ADMIN" || currentUser.role === "MASTER")) {
+      apiFetch<Approval[]>("/api/approvals").then(setApprovals).catch(() => {});
+    }
+  }, [activeView, currentUser]);
+
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setLoginError("");
+    setLoginSubmitting(true);
+
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email")).trim().toLowerCase();
     const password = String(form.get("password"));
-    const account = accounts.find((item) => item.email === email && item.password === password);
 
-    if (!account) {
-      setError("Wrong email or password. Try a demo account below.");
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setLoginError("Wrong email or password.");
+      setLoginSubmitting(false);
       return;
     }
 
-    setCurrentUser(account);
+    await loadProfile();
     setActiveView("home");
-    setError("");
-    setNotice(`Logged in as ${roleLabels[account.role]}.`);
+    setNotice("Logged in.");
+    setLoginSubmitting(false);
   }
 
-  function loginAs(account: Account) {
-    setCurrentUser(account);
-    setActiveView("home");
-    setError("");
-    setNotice(`Logged in as ${roleLabels[account.role]}.`);
-  }
-
-  function logout() {
+  async function logout() {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut();
     setCurrentUser(null);
     setActiveView("home");
     setNotice("Logged out safely.");
   }
 
-  function submitCase(event: FormEvent<HTMLFormElement>) {
+  async function submitCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title")).trim();
+    const description = String(form.get("details") ?? "").trim();
     if (!title) return;
-    setCases((current) => [{ title, status: "Open", owner: currentUser?.name ?? "Member" }, ...current]);
-    setNotice("Your help request was submitted.");
-    event.currentTarget.reset();
+
+    try {
+      const created = await apiFetch<CaseItem>("/api/cases", {
+        method: "POST",
+        body: JSON.stringify({ title, description })
+      });
+      setCases((current) => [created, ...current]);
+      setNotice("Your help request was submitted.");
+      event.currentTarget.reset();
+    } catch (error) {
+      setNotice(error instanceof ApiClientError ? error.message : "Could not submit your request.");
+    }
   }
 
-  function addMember(event: FormEvent<HTMLFormElement>) {
+  async function addMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!newMemberName.trim()) return;
-    setNotice(`${newMemberName.trim()} was added under your member circle.`);
-    setNewMemberName("");
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name")).trim();
+    const email = String(form.get("email")).trim();
+    const invitedById = String(form.get("invitedById") ?? "") || undefined;
+    if (!name || !email) return;
+
+    try {
+      const created = await apiFetch<Member>("/api/members", {
+        method: "POST",
+        body: JSON.stringify({ name, email, invitedById })
+      });
+      setMembers((current) => [created, ...current]);
+      setNotice(`${created.name} was added.`);
+      event.currentTarget.reset();
+    } catch (error) {
+      setNotice(error instanceof ApiClientError ? error.message : "Could not add that member.");
+    }
+  }
+
+  async function sendAnnouncement(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const title = String(form.get("title")).trim();
+    const content = String(form.get("content")).trim();
+    const category = String(form.get("category") ?? "EVENTS") as Announcement["category"];
+    if (!title || !content) return;
+
+    try {
+      const created = await apiFetch<Announcement>("/api/announcements", {
+        method: "POST",
+        body: JSON.stringify({ title, content, category, publishNow: true })
+      });
+      setAnnouncements((current) => [created, ...current]);
+      setNotice("Announcement sent.");
+      event.currentTarget.reset();
+    } catch (error) {
+      setNotice(error instanceof ApiClientError ? error.message : "Could not send that announcement.");
+    }
+  }
+
+  async function decideApproval(id: string, status: "APPROVED" | "REJECTED") {
+    try {
+      await apiFetch(`/api/approvals/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      setApprovals((current) => current.filter((item) => item.id !== id));
+      setNotice(status === "APPROVED" ? "Approved." : "Rejected.");
+    } catch (error) {
+      setNotice(error instanceof ApiClientError ? error.message : "Could not update that approval.");
+    }
+  }
+
+  if (authLoading) {
+    return (
+      <main className="login-page">
+        <p className="lead">Loading...</p>
+      </main>
+    );
   }
 
   if (!currentUser) {
@@ -151,19 +323,21 @@ export default function HomePage() {
             <div className="login-icon"><Lock size={28} /></div>
             <h2>Sign in</h2>
             <label>Email<input name="email" type="email" placeholder="member@demo.com" required /></label>
-            <label>Password<input name="password" type="password" placeholder="123456" required /></label>
-            {error && <p className="error-text">{error}</p>}
-            <button className="button primary" type="submit">Login</button>
+            <label>Password<input name="password" type="password" required /></label>
+            {loginError && <p className="error-text">{loginError}</p>}
+            <button className="button primary" type="submit" disabled={loginSubmitting}>
+              {loginSubmitting ? "Signing in..." : "Login"}
+            </button>
           </form>
         </section>
 
         <section className="demo-grid" aria-label="Demo accounts">
-          {accounts.map((account) => (
-            <button className="demo-card" key={account.email} onClick={() => loginAs(account)}>
+          {demoAccounts.map((account) => (
+            <div className="demo-card" key={account.email}>
               <strong>{roleLabels[account.role]}</strong>
               <span>{account.email}</span>
-              <small>Password: 123456</small>
-            </button>
+              <small>Password set up in Supabase Auth by the project admin.</small>
+            </div>
           ))}
         </section>
       </main>
@@ -177,7 +351,7 @@ export default function HomePage() {
           <div className="brand-mark">YB</div>
           <div>
             <h2 className="brand-title">YB NGO</h2>
-            <p className="brand-subtitle">ybngo.my - {currentUser.organisation}</p>
+            <p className="brand-subtitle">ybngo.my</p>
           </div>
         </button>
 
@@ -212,28 +386,40 @@ export default function HomePage() {
 
         <div className="toast" role="status">{notice}</div>
 
-        {activeView === "home" && <HomeView role={currentUser.role} setActiveView={setActiveView} />}
-        {activeView === "news" && <NewsView />}
-        {activeView === "programmes" && <ProgrammesView />}
+        {activeView === "home" && <HomeView role={currentUser.role} summary={summary} setActiveView={setActiveView} />}
+        {activeView === "news" && (
+          <NewsView announcements={announcements} canPost={canManage(currentUser.role)} sendAnnouncement={sendAnnouncement} />
+        )}
+        {activeView === "programmes" && <ProgrammesView programmes={programmes} />}
         {activeView === "help" && <HelpView cases={cases} submitCase={submitCase} />}
-        {activeView === "members" && <MembersView newMemberName={newMemberName} setNewMemberName={setNewMemberName} addMember={addMember} />}
-        {activeView === "meetings" && <MeetingsView />}
-        {activeView === "money" && <MoneyView />}
-        {activeView === "reports" && <ReportsView />}
-        {activeView === "admin" && <AdminView role={currentUser.role} />}
+        {activeView === "members" && (
+          <MembersView members={members} canPlaceAnywhere={canManage(currentUser.role)} addMember={addMember} />
+        )}
+        {activeView === "meetings" && <MeetingsView meetings={meetings} />}
+        {activeView === "money" && <MoneyView summary={summary} />}
+        {activeView === "reports" && <ReportsView summary={summary} />}
+        {activeView === "admin" && <AdminView role={currentUser.role} approvals={approvals} decideApproval={decideApproval} />}
       </section>
     </main>
   );
 }
 
-function HomeView({ role, setActiveView }: { role: Role; setActiveView: (view: View) => void }) {
+function HomeView({
+  role,
+  summary,
+  setActiveView
+}: {
+  role: Role;
+  summary: DashboardSummary | null;
+  setActiveView: (view: View) => void;
+}) {
   const actions: Array<{ title: string; detail: string; icon: React.ElementType; view: View; roles: Role[] }> = [
-    { title: "Read news", detail: "Latest announcements and urgent notices.", icon: Bell, view: "news", roles: ["member", "president", "admin", "master"] },
-    { title: "Join programme", detail: "Register for events and volunteer work.", icon: CalendarDays, view: "programmes", roles: ["member", "president", "admin", "master"] },
-    { title: "Ask for help", detail: "Submit a case or complaint.", icon: HeartHandshake, view: "help", roles: ["member", "admin", "master"] },
-    { title: "Add member", detail: "Invite a member into your circle.", icon: UserPlus, view: "members", roles: ["member", "president", "admin", "master"] },
-    { title: "Review money", detail: "Budgets, grants, expenses, donations.", icon: WalletCards, view: "money", roles: ["president", "admin", "master"] },
-    { title: "View reports", detail: "Impact, activity, and government reports.", icon: FileText, view: "reports", roles: ["president", "admin", "master"] }
+    { title: "Read news", detail: "Latest announcements and urgent notices.", icon: Bell, view: "news", roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+    { title: "Join programme", detail: "Register for events and volunteer work.", icon: CalendarDays, view: "programmes", roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+    { title: "Ask for help", detail: "Submit a case or complaint.", icon: HeartHandshake, view: "help", roles: ["MEMBER", "ADMIN", "MASTER"] },
+    { title: "Add member", detail: "Invite a member into your circle.", icon: UserPlus, view: "members", roles: ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"] },
+    { title: "Review money", detail: "Budgets, grants, expenses, donations.", icon: WalletCards, view: "money", roles: ["PRESIDENT", "ADMIN", "MASTER"] },
+    { title: "View reports", detail: "Impact, activity, and government reports.", icon: FileText, view: "reports", roles: ["PRESIDENT", "ADMIN", "MASTER"] }
   ];
 
   return (
@@ -246,19 +432,21 @@ function HomeView({ role, setActiveView }: { role: Role; setActiveView: (view: V
         </div>
       </section>
       <section className="quick-grid">
-        {actions.filter((action) => action.roles.includes(role)).map((action) => (
-          <button className="quick-action" key={action.title} onClick={() => setActiveView(action.view)}>
-            <action.icon size={30} />
-            <span>{action.title}</span>
-            <small>{action.detail}</small>
-          </button>
-        ))}
+        {actions
+          .filter((action) => action.roles.includes(role))
+          .map((action) => (
+            <button className="quick-action" key={action.title} onClick={() => setActiveView(action.view)}>
+              <action.icon size={30} />
+              <span>{action.title}</span>
+              <small>{action.detail}</small>
+            </button>
+          ))}
       </section>
       <section className="stats-grid">
-        <Metric icon={Users} value="248" label="Active members" />
-        <Metric icon={CalendarDays} value="12" label="Open programmes" />
-        <Metric icon={ClipboardList} value="5" label="Open help cases" />
-        <Metric icon={CheckCircle2} value="3" label="Waiting approval" />
+        <Metric icon={Users} value={String(summary?.members ?? "-")} label="Active members" />
+        <Metric icon={CalendarDays} value={String(summary?.openProgrammes ?? "-")} label="Open programmes" />
+        <Metric icon={ClipboardList} value={String(summary?.openCases ?? "-")} label="Open help cases" />
+        <Metric icon={CheckCircle2} value={String(summary?.pendingApprovals ?? "-")} label="Waiting approval" />
       </section>
     </>
   );
@@ -266,60 +454,91 @@ function HomeView({ role, setActiveView }: { role: Role; setActiveView: (view: V
 
 function getSideTitle(role: Role) {
   const titles: Record<Role, string> = {
-    member: "Simple member area",
-    president: "President control area",
-    admin: "Operations admin area",
-    master: "Master system area"
+    MEMBER: "Simple member area",
+    PRESIDENT: "President control area",
+    ADMIN: "Operations admin area",
+    MASTER: "Master system area"
   };
   return titles[role];
 }
 
 function getSideDescription(role: Role) {
   const descriptions: Record<Role, string> = {
-    member: "Members can read news, join programmes, ask for help, add members under their circle, and check points.",
-    president: "The president can manage members, meetings, approvals, reports, money reviews, and committee work.",
-    admin: "Admins can run daily operations: members, programmes, help cases, finance, announcements, and settings.",
-    master: "The master account can see and control every organisation, user role, setting, report, and access rule."
+    MEMBER: "Members can read news, join programmes, ask for help, add members under their circle, and check points.",
+    PRESIDENT: "The president can manage members, meetings, approvals, reports, money reviews, and committee work.",
+    ADMIN: "Admins can run daily operations: members, programmes, help cases, finance, announcements, and settings.",
+    MASTER: "The master account can see and control every organisation, user role, setting, report, and access rule."
   };
   return descriptions[role];
 }
 
-function NewsView() {
+function NewsView({
+  announcements,
+  canPost,
+  sendAnnouncement
+}: {
+  announcements: Announcement[];
+  canPost: boolean;
+  sendAnnouncement: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const badgeClass: Record<Announcement["category"], string> = { EVENTS: "blue", URGENT: "red", OPPORTUNITIES: "gold" };
+  const categoryLabel: Record<Announcement["category"], string> = { EVENTS: "Event", URGENT: "Urgent", OPPORTUNITIES: "Opportunity" };
+
   return (
     <section className="dashboard-grid">
       <Panel title="Latest News">
+        {announcements.length === 0 && <p className="meta">No announcements yet.</p>}
         {announcements.map((item) => (
-          <button className="row row-button" key={item.title}>
-            <div><strong>{item.title}</strong><span className="meta">{item.detail}</span></div>
-            <span className="badge blue">{item.type}</span>
-          </button>
+          <div className="row" key={item.id}>
+            <div><strong>{item.title}</strong><span className="meta">{item.content}</span></div>
+            <span className={`badge ${badgeClass[item.category]}`}>{categoryLabel[item.category]}</span>
+          </div>
         ))}
       </Panel>
-      <Panel title="Send Announcement">
-        <label>Title<input placeholder="Short title" /></label>
-        <label>Message<textarea placeholder="Write simple announcement" /></label>
-        <button className="button primary"><Plus size={18} /> Send to all</button>
-      </Panel>
+      {canPost && (
+        <Panel title="Send Announcement">
+          <form className="stack-form" onSubmit={sendAnnouncement}>
+            <label>Title<input name="title" placeholder="Short title" required /></label>
+            <label>Message<textarea name="content" placeholder="Write simple announcement" required /></label>
+            <label>
+              Category
+              <select name="category" defaultValue="EVENTS">
+                <option value="EVENTS">Event</option>
+                <option value="URGENT">Urgent</option>
+                <option value="OPPORTUNITIES">Opportunity</option>
+              </select>
+            </label>
+            <button className="button primary" type="submit"><Plus size={18} /> Send to all</button>
+          </form>
+        </Panel>
+      )}
     </section>
   );
 }
 
-function ProgrammesView() {
+function ProgrammesView({ programmes }: { programmes: Programme[] }) {
   return (
     <section className="three-grid">
+      {programmes.length === 0 && <p className="meta">No programmes yet.</p>}
       {programmes.map((item) => (
-        <button className="card metric clickable" key={item.title}>
+        <div className="card metric" key={item.id}>
           <CalendarDays size={24} color="#236c4a" />
           <div className="small-metric">{item.title}</div>
-          <div className="metric-label">{item.detail}</div>
+          <div className="metric-label">{item.description}</div>
           <span className="badge green">{item.status}</span>
-        </button>
+        </div>
       ))}
     </section>
   );
 }
 
-function HelpView({ cases, submitCase }: { cases: Array<{ title: string; status: string; owner: string }>; submitCase: (event: FormEvent<HTMLFormElement>) => void }) {
+function HelpView({
+  cases,
+  submitCase
+}: {
+  cases: CaseItem[];
+  submitCase: (event: FormEvent<HTMLFormElement>) => void;
+}) {
   return (
     <section className="dashboard-grid">
       <Panel title="Ask For Help">
@@ -330,9 +549,10 @@ function HelpView({ cases, submitCase }: { cases: Array<{ title: string; status:
         </form>
       </Panel>
       <Panel title="Open Cases">
+        {cases.length === 0 && <p className="meta">No cases yet.</p>}
         {cases.map((item) => (
-          <div className="row" key={`${item.title}-${item.owner}`}>
-            <div><strong>{item.title}</strong><span className="meta">Submitted by {item.owner}</span></div>
+          <div className="row" key={item.id}>
+            <div><strong>{item.title}</strong><span className="meta">Handled by {item.assignedTo?.name ?? "Unassigned"}</span></div>
             <span className="badge gold">{item.status}</span>
           </div>
         ))}
@@ -341,22 +561,42 @@ function HelpView({ cases, submitCase }: { cases: Array<{ title: string; status:
   );
 }
 
-function MembersView({ newMemberName, setNewMemberName, addMember }: { newMemberName: string; setNewMemberName: (value: string) => void; addMember: (event: FormEvent<HTMLFormElement>) => void }) {
+function MembersView({
+  members,
+  canPlaceAnywhere,
+  addMember
+}: {
+  members: Member[];
+  canPlaceAnywhere: boolean;
+  addMember: (event: FormEvent<HTMLFormElement>) => void;
+}) {
   return (
     <section className="dashboard-grid">
       <Panel title="Add Member">
         <form className="stack-form" onSubmit={addMember}>
-          <label>New member name<input value={newMemberName} onChange={(event) => setNewMemberName(event.target.value)} placeholder="Full name" required /></label>
-          <label>Place under<select><option>Under my member circle</option><option>Under another member</option></select></label>
+          <label>New member name<input name="name" placeholder="Full name" required /></label>
+          <label>Email<input name="email" type="email" placeholder="member@example.com" required /></label>
+          {canPlaceAnywhere && (
+            <label>
+              Place under
+              <select name="invitedById" defaultValue="">
+                <option value="">Directly under me</option>
+                {members.map((member) => (
+                  <option key={member.id} value={member.id}>{member.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <button className="button primary" type="submit"><UserPlus size={18} /> Add member</button>
         </form>
       </Panel>
       <Panel title="Member Circle">
+        {members.length === 0 && <p className="meta">No members yet.</p>}
         {members.map((member) => (
-          <div className="leader-row" key={member.name}>
+          <div className="leader-row" key={member.id}>
             <span className="rank">{member.name.slice(0, 1)}</span>
             <strong>{member.name}</strong>
-            <span className="meta">{member.under}</span>
+            <span className="meta">{member.invitedBy ? `Under ${member.invitedBy.name}` : "Direct"}</span>
           </div>
         ))}
       </Panel>
@@ -364,52 +604,75 @@ function MembersView({ newMemberName, setNewMemberName, addMember }: { newMember
   );
 }
 
-function MeetingsView() {
+function MeetingsView({ meetings }: { meetings: Meeting[] }) {
   return (
     <section className="dashboard-grid">
       <Panel title="Upcoming Meetings">
-        {["President planning - Friday 7:30 PM", "Grant review - Monday 10:00 AM", "Programme safety check - Wednesday 3:00 PM"].map((meeting) => (
-          <button className="row row-button" key={meeting}><strong>{meeting}</strong><span className="badge green">View</span></button>
+        {meetings.length === 0 && <p className="meta">No meetings scheduled.</p>}
+        {meetings.map((meeting) => (
+          <div className="row" key={meeting.id}>
+            <strong>{meeting.title}</strong>
+            <span className="badge green">{new Date(meeting.startsAt).toLocaleString()}</span>
+          </div>
         ))}
       </Panel>
       <Panel title="Meeting Minutes">
-        <button className="row row-button"><strong>Upload minutes</strong><span className="meta">Add PDF or document after meeting.</span></button>
-        <button className="row row-button"><strong>Attendance</strong><span className="meta">Mark who attended.</span></button>
+        <div className="row"><strong>Upload minutes</strong><span className="meta">Add PDF or document after meeting.</span></div>
+        <div className="row"><strong>Attendance</strong><span className="meta">Mark who attended.</span></div>
       </Panel>
     </section>
   );
 }
 
-function MoneyView() {
+function MoneyView({ summary }: { summary: DashboardSummary | null }) {
   return (
     <section className="three-grid">
-      <Metric icon={WalletCards} value="RM 42k" label="Approved budget" />
-      <Metric icon={FileText} value="8" label="Expenses waiting" />
-      <Metric icon={ShieldCheck} value="2" label="Grant applications" />
+      <Metric icon={WalletCards} value={`RM ${(summary?.money.approvedBudget ?? 0).toLocaleString()}`} label="Approved budget" />
+      <Metric icon={FileText} value={String(summary?.money.expensesPending ?? "-")} label="Expenses waiting" />
+      <Metric icon={ShieldCheck} value={String(summary?.money.grantApplications ?? "-")} label="Grant applications" />
     </section>
   );
 }
 
-function ReportsView() {
+function ReportsView({ summary }: { summary: DashboardSummary | null }) {
   return (
     <section className="three-grid">
-      <Metric icon={Users} value="248" label="Members reached" />
-      <Metric icon={HeartHandshake} value="1,240" label="Volunteer hours" />
-      <Metric icon={Trophy} value="84%" label="Engagement" />
+      <Metric icon={Users} value={String(summary?.members ?? "-")} label="Members reached" />
+      <Metric icon={HeartHandshake} value={String(summary?.volunteerHours ?? "-")} label="Volunteer hours" />
+      <Metric icon={Trophy} value={String(summary?.openCases ?? "-")} label="Open help cases" />
     </section>
   );
 }
 
-function AdminView({ role }: { role: Role }) {
+function AdminView({
+  role,
+  approvals,
+  decideApproval
+}: {
+  role: Role;
+  approvals: Approval[];
+  decideApproval: (id: string, status: "APPROVED" | "REJECTED") => void;
+}) {
   return (
     <section className="dashboard-grid">
-      <Panel title="Login and Permissions">
-        <button className="row row-button"><div><strong>Manage roles</strong><span className="meta">Control who can see each area.</span></div><span className="badge green">{roleLabels[role]}</span></button>
-        <button className="row row-button"><div><strong>President and agency access</strong><span className="meta">Approve high-level access to organisations.</span></div><span className="badge blue">Secure</span></button>
+      <Panel title="Pending Approvals">
+        {approvals.length === 0 && <p className="meta">Nothing waiting for approval.</p>}
+        {approvals.map((approval) => (
+          <div className="row" key={approval.id}>
+            <div>
+              <strong>{approval.announcement?.title ?? approval.event?.title ?? approval.type}</strong>
+              <span className="meta">{approval.type}</span>
+            </div>
+            <div className="inline-actions">
+              <button className="button" type="button" onClick={() => decideApproval(approval.id, "REJECTED")}>Reject</button>
+              <button className="button primary" type="button" onClick={() => decideApproval(approval.id, "APPROVED")}>Approve</button>
+            </div>
+          </div>
+        ))}
       </Panel>
       <Panel title="System Setup">
-        <button className="row row-button"><strong>Organisation profile</strong><span className="meta">Name, registration, committee, contact details.</span></button>
-        <button className="row row-button"><strong>Audit logs</strong><span className="meta">Track all important changes.</span></button>
+        <div className="row"><strong>Your role</strong><span className="badge green">{roleLabels[role]}</span></div>
+        <div className="row"><strong>Organisation profile</strong><span className="meta">Name, registration, committee, contact details.</span></div>
       </Panel>
     </section>
   );
@@ -426,11 +689,11 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function Metric({ icon: Icon, value, label }: { icon: React.ElementType; value: string; label: string }) {
   return (
-    <button className="card metric clickable">
+    <div className="card metric">
       <Icon size={26} color="#236c4a" />
       <div className="metric-value">{value}</div>
       <div className="metric-label">{label}</div>
-    </button>
+    </div>
   );
 }
 
@@ -464,4 +727,3 @@ function getViewDescription(view: View, role: Role) {
   };
   return descriptions[view];
 }
-

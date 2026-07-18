@@ -1,36 +1,84 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Role } from "@prisma/client";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const prisma = new PrismaClient();
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Demo!Passw0rd2026";
 
-async function main() {
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@ngo.local" },
-    update: {},
-    create: { name: "Super Admin", email: "admin@ngo.local", role: "ADMIN", points: 0 }
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceKey) {
+    throw new Error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY before seeding.");
+  }
+
+  return createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function upsertAuthUser(supabaseAdmin: SupabaseClient, email: string) {
+  const { data: existing, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+  if (listError) {
+    throw new Error(`Could not list Supabase auth users: ${listError.message}`);
+  }
+
+  const found = existing.users.find((user) => user.email === email);
+  if (found) return found;
+
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: DEMO_PASSWORD,
+    email_confirm: true
   });
 
-  const boardMembers = await Promise.all(
+  if (error || !data.user) {
+    throw new Error(`Could not create Supabase auth user for ${email}: ${error?.message}`);
+  }
+
+  return data.user;
+}
+
+async function upsertProfile(
+  supabaseAdmin: SupabaseClient,
+  input: { name: string; email: string; role: Role; points?: number; invitedById?: string }
+) {
+  const authUser = await upsertAuthUser(supabaseAdmin, input.email);
+
+  return prisma.user.upsert({
+    where: { email: input.email },
+    update: { authUserId: authUser.id },
+    create: {
+      name: input.name,
+      email: input.email,
+      role: input.role,
+      points: input.points ?? 0,
+      invitedById: input.invitedById,
+      authUserId: authUser.id
+    }
+  });
+}
+
+async function main() {
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const master = await upsertProfile(supabaseAdmin, { name: "Master Account", email: "master@demo.com", role: "MASTER" });
+  const president = await upsertProfile(supabaseAdmin, { name: "Club President", email: "president@demo.com", role: "PRESIDENT" });
+  const admin = await upsertProfile(supabaseAdmin, { name: "Operations Admin", email: "admin@demo.com", role: "ADMIN" });
+
+  const committee = await Promise.all(
     ["Aina Rahman", "Daniel Lee", "Priya Kumar", "Marcus Tan", "Sofia Noor", "Hafiz Omar", "Mei Wong"].map((name, index) =>
-      prisma.user.upsert({
-        where: { email: `board${index + 1}@ngo.local` },
-        update: {},
-        create: { name, email: `board${index + 1}@ngo.local`, role: "BOARD" }
-      })
+      upsertProfile(supabaseAdmin, { name, email: `committee${index + 1}@demo.com`, role: "PRESIDENT" })
     )
   );
 
+  const memberNames = ["Nadia", "Ethan", "Irfan", "Leah", "Arjun", "Chloe", "Ravi", "Maya", "Yusuf", "Grace", "Jun"];
   const members = await Promise.all(
-    ["Nadia", "Ethan", "Irfan", "Leah", "Arjun", "Chloe", "Ravi", "Maya", "Yusuf", "Grace", "Jun"].map((name, index) =>
-      prisma.user.upsert({
-        where: { email: `${name.toLowerCase()}@members.local` },
-        update: {},
-        create: {
-          name,
-          email: `${name.toLowerCase()}@members.local`,
-          role: "MEMBER",
-          points: 40 + index * 12,
-          invitedById: index > 2 ? undefined : admin.id
-        }
+    memberNames.map((name, index) =>
+      upsertProfile(supabaseAdmin, {
+        name,
+        email: index === 0 ? "member@demo.com" : `${name.toLowerCase()}@members.demo`,
+        role: "MEMBER",
+        points: 40 + index * 12,
+        invitedById: index > 2 ? undefined : admin.id
       })
     )
   );
@@ -42,19 +90,20 @@ async function main() {
       category: "EVENTS",
       createdById: admin.id,
       publishedAt: new Date(),
-      approval: { create: { type: "announcement", status: "APPROVED", reviewerId: boardMembers[0].id, reviewedAt: new Date() } }
+      approval: { create: { type: "announcement", status: "APPROVED", reviewerId: president.id, reviewedAt: new Date() } }
     }
   });
 
   await prisma.meeting.create({
     data: {
-      title: "May Board Planning",
+      title: "May Committee Planning",
       agenda: "Review youth engagement, event approvals, and monthly rewards.",
       startsAt: new Date("2026-05-08T19:30:00+08:00"),
       endsAt: new Date("2026-05-08T20:30:00+08:00"),
       location: "Club office",
+      createdBy: president.id,
       attendance: {
-        create: boardMembers.map((member) => ({ userId: member.id }))
+        create: committee.map((member) => ({ userId: member.id }))
       }
     }
   });
@@ -82,9 +131,16 @@ async function main() {
       })
     )
   );
+
+  console.log(`Seed complete. Demo login password for all seeded accounts: ${DEMO_PASSWORD}`);
+  console.log(`Master: ${master.email}`);
 }
 
 main()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
   .finally(async () => {
     await prisma.$disconnect();
   });

@@ -8,8 +8,9 @@ datasource db {
 }
 
 enum Role {
+  MASTER
   ADMIN
-  BOARD
+  PRESIDENT
   MEMBER
 }
 
@@ -84,6 +85,7 @@ enum RegistrationStatus {
 
 model User {
   id             String              @id @default(cuid())
+  authUserId     String?             @unique @map("auth_user_id")
   name           String
   email          String              @unique
   role           Role                @default(MEMBER)
