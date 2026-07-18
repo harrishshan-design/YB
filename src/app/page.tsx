@@ -147,8 +147,15 @@ export default function HomePage() {
       setActiveView("home");
       return user;
     } catch {
-      setCurrentUser(null);
-      return null;
+      try {
+        const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile");
+        setCurrentUser(user);
+        setActiveView("home");
+        return user;
+      } catch {
+        setCurrentUser(null);
+        return null;
+      }
     }
   }, []);
 
@@ -247,7 +254,7 @@ export default function HomePage() {
     }
 
     const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { name, role: selectedRole } }
@@ -255,6 +262,14 @@ export default function HomePage() {
 
     if (error) {
       setLoginError(error.message);
+      setLoginSubmitting(false);
+      return;
+    }
+
+    if (!data.session) {
+      setAuthMode("login");
+      setLoginError("");
+      setNotice("Account created. Please check your email, confirm it, then login. Do not press sign up again.");
       setLoginSubmitting(false);
       return;
     }
