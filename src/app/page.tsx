@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Activity as ActivityIcon,
   BarChart3,
   Bell,
   Building2,
@@ -15,6 +16,7 @@ import {
   Gauge,
   Globe2,
   HeartHandshake,
+  KeyRound,
   Landmark,
   LogOut,
   Megaphone,
@@ -31,9 +33,10 @@ import {
   X
 } from "lucide-react";
 import type { Socket } from "socket.io-client";
-import { api, ApiError, clearSession, getStoredToken, getStoredUser } from "@/lib/api";
+import { api, ApiError, clearSession, getStoredToken, getStoredUser, onUnauthorized } from "@/lib/api";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
 import type {
+  ActivityEntry,
   Announcement,
   AnnouncementCategory,
   ApiUser,
@@ -122,21 +125,55 @@ export default function Home() {
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [chatMessages, setChatMessages] = useState<Record<string, BoardMessage[]>>({});
+  const [board, setBoard] = useState<ApiUser[]>([]);
+  const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>([]);
+  const [panelLoading, setPanelLoading] = useState(false);
 
   const [activeSection, setActiveSection] = useState("dashboard");
   const [announcementFilter, setAnnouncementFilter] = useState<AnnouncementFilter>("All");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [chatChannel, setChatChannel] = useState("general");
   const [chatInput, setChatInput] = useState("");
-  const [modal, setModal] = useState<"announcement" | "member" | "meeting" | null>(null);
+  const [modal, setModal] = useState<"announcement" | "member" | "meeting" | "board" | "activity" | "password" | null>(null);
   const [toast, setToast] = useState("Ready");
+  const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
 
   const socketRef = useRef<Socket | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPrivileged = authUser?.role === "ADMIN" || authUser?.role === "BOARD";
+
+  function showToast(message: string, kind: "info" | "success" | "error" = "info") {
+    setToast(message);
+    setToastKind(kind);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(""), 5000);
+  }
 
   useEffect(() => {
     setAuthUser(getStoredUser());
     setAuthChecked(true);
+  }, []);
+
+  useEffect(() => {
+    onUnauthorized(() => {
+      handleLogout("Your session expired. Please sign in again.");
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!modal) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setModal(null);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [modal]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -169,7 +206,7 @@ export default function Home() {
         }
       } catch (err) {
         if (!cancelled) {
-          setToast(err instanceof ApiError ? err.message : "Could not load data from the server.");
+          showToast(err instanceof ApiError ? err.message : "Could not load data from the server.", "error");
         }
       } finally {
         if (!cancelled) setDataLoading(false);
@@ -255,7 +292,7 @@ export default function Home() {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function handleLogout() {
+  function handleLogout(message = "Ready") {
     disconnectSocket();
     clearSession();
     setAuthUser(null);
@@ -266,8 +303,11 @@ export default function Home() {
     setApprovals([]);
     setLeaderboard([]);
     setChatMessages({});
+    setBoard([]);
+    setActivityFeed([]);
     setSelectedMemberId(null);
-    setToast("Ready");
+    setModal(null);
+    showToast(message);
   }
 
   async function handleAnnouncementSubmit(event: FormEvent<HTMLFormElement>) {
@@ -283,10 +323,10 @@ export default function Home() {
         publishNow
       });
       setModal(null);
-      setToast(publishNow ? "Announcement published" : "Announcement queued for board approval");
+      showToast(publishNow ? "Announcement published" : "Announcement queued for board approval", "success");
       event.currentTarget.reset();
     } catch (err) {
-      setToast(err instanceof ApiError ? err.message : "Could not create the announcement.");
+      showToast(err instanceof ApiError ? err.message : "Could not create the announcement.", "error");
     }
   }
 
@@ -305,10 +345,10 @@ export default function Home() {
       setMembers((current) => [...current, member]);
       setSelectedMemberId(member.invitedById ?? member.id);
       setModal(null);
-      setToast(`${member.name} added to the member circle`);
+      showToast(`${member.name} added to the member circle`, "success");
       event.currentTarget.reset();
     } catch (err) {
-      setToast(err instanceof ApiError ? err.message : "Could not add the member.");
+      showToast(err instanceof ApiError ? err.message : "Could not add the member.", "error");
     }
   }
 
@@ -329,10 +369,10 @@ export default function Home() {
       });
       setMeetings((current) => [...current, meeting].sort((a, b) => a.startsAt.localeCompare(b.startsAt)));
       setModal(null);
-      setToast("Meeting scheduled");
+      showToast("Meeting scheduled", "success");
       event.currentTarget.reset();
     } catch (err) {
-      setToast(err instanceof ApiError ? err.message : "Could not schedule the meeting.");
+      showToast(err instanceof ApiError ? err.message : "Could not schedule the meeting.", "error");
     }
   }
 
@@ -342,9 +382,9 @@ export default function Home() {
       setApprovals((current) => current.filter((approval) => approval.id !== id));
       const summary = await api.dashboardSummary().catch(() => null);
       if (summary) setDashboard(summary);
-      setToast(`Approval ${status.toLowerCase()}`);
+      showToast(`Approval ${status.toLowerCase()}`, "success");
     } catch (err) {
-      setToast(err instanceof ApiError ? err.message : "Could not update the approval.");
+      showToast(err instanceof ApiError ? err.message : "Could not update the approval.", "error");
     }
   }
 
@@ -352,6 +392,76 @@ export default function Home() {
     if (!chatInput.trim() || !socketRef.current) return;
     socketRef.current.emit("board:message", { channel: chatChannel, message: chatInput.trim() });
     setChatInput("");
+  }
+
+  async function openBoardPanel() {
+    setModal("board");
+    if (board.length > 0) return;
+    setPanelLoading(true);
+    try {
+      setBoard(await api.board());
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Could not load board members.", "error");
+    } finally {
+      setPanelLoading(false);
+    }
+  }
+
+  async function openActivityPanel() {
+    setModal("activity");
+    setPanelLoading(true);
+    try {
+      setActivityFeed(await api.activity());
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Could not load activity.", "error");
+    } finally {
+      setPanelLoading(false);
+    }
+  }
+
+  async function toggleMemberActive(member: ApiUser) {
+    try {
+      const updated = await api.updateMember(member.id, { isActive: !member.isActive });
+      setBoard((current) => current.map((entry) => (entry.id === updated.id ? updated : entry)));
+      showToast(`${updated.name} ${updated.isActive ? "reactivated" : "deactivated"}`, "success");
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Could not update the member.", "error");
+    }
+  }
+
+  async function handlePasswordSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const newPassword = String(form.get("newPassword"));
+    const confirmPassword = String(form.get("confirmPassword"));
+
+    if (newPassword !== confirmPassword) {
+      showToast("New password and confirmation do not match.", "error");
+      return;
+    }
+
+    try {
+      await api.changePassword({ currentPassword: String(form.get("currentPassword")), newPassword });
+      setModal(null);
+      showToast("Password updated", "success");
+      event.currentTarget.reset();
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : "Could not update your password.", "error");
+    }
+  }
+
+  function describeActivity(entry: ActivityEntry) {
+    const meta = entry.metadata ?? {};
+    switch (entry.action) {
+      case "member_added_to_circle":
+        return `${entry.user.name} added ${String(meta.memberName ?? "a member")} to their circle`;
+      case "points_awarded":
+        return `${entry.user.name} awarded ${String(meta.points ?? "")} points (${String(meta.reason ?? "")})`;
+      case "member_updated":
+        return `${entry.user.name} updated ${String(meta.memberName ?? "a member")}`;
+      default:
+        return `${entry.user.name} — ${entry.action}`;
+    }
   }
 
   if (!authChecked) {
@@ -398,7 +508,10 @@ export default function Home() {
             <strong>{authUser.name}</strong>
             <span className="meta">{authUser.role}</span>
           </div>
-          <button className="icon-button" onClick={handleLogout} aria-label="Sign out"><LogOut size={16} /></button>
+          <div className="inline-actions">
+            <button className="icon-button" onClick={() => setModal("password")} aria-label="Change password"><KeyRound size={16} /></button>
+            <button className="icon-button" onClick={() => handleLogout()} aria-label="Sign out"><LogOut size={16} /></button>
+          </div>
         </div>
       </aside>
 
@@ -417,7 +530,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="toast" role="status">{toast}</div>
+        {toast && <div className={`toast ${toastKind}`} role="status">{toast}</div>}
 
         <section className="quick-grid" aria-label="Common actions">
           {quickActions.map((action) => (
@@ -434,7 +547,7 @@ export default function Home() {
             <p className="meta">Loading system metrics...</p>
           ) : (
             stats.map((stat) => (
-              <button className="card metric clickable" key={stat.label} onClick={() => setToast(`${stat.label}: ${stat.value}`)}>
+              <button className="card metric clickable" key={stat.label} onClick={() => showToast(`${stat.label}: ${stat.value}`)}>
                 <stat.icon size={22} color="#236c4a" />
                 <div className="metric-value">{stat.value}</div>
                 <div className="metric-label">{stat.label}</div>
@@ -451,7 +564,7 @@ export default function Home() {
             </div>
             <div className="card-body list">
               {platformSurfaces.map((surface) => (
-                <button className="row row-button" key={surface.title} onClick={() => setToast(`${surface.title} opened`)}>
+                <button className="row row-button" key={surface.title} onClick={() => showToast(`${surface.title} opened`)}>
                   <div>
                     <strong><surface.icon size={16} /> {surface.title}</strong>
                     <span className="meta">{surface.detail}</span>
@@ -465,11 +578,11 @@ export default function Home() {
           <div className="card">
             <div className="card-header">
               <h2 className="card-title">Main Work Areas</h2>
-              <button className="badge green badge-button" onClick={() => setToast("Main work areas selected")}>Plain workflow</button>
+              <button className="badge green badge-button" onClick={() => showToast("Main work areas selected")}>Plain workflow</button>
             </div>
             <div className="card-body list">
               {platformModules.map((module) => (
-                <button className="row row-button" key={module.title} onClick={() => setToast(`${module.title} selected`)}>
+                <button className="row row-button" key={module.title} onClick={() => showToast(`${module.title} selected`)}>
                   <div>
                     <strong><module.icon size={16} /> {module.title}</strong>
                     <span className="meta">{module.detail}</span>
@@ -482,7 +595,7 @@ export default function Home() {
 
         <section className="three-grid">
           {integrations.map((integration) => (
-            <button className="card metric clickable" key={integration.title} onClick={() => setToast(`${integration.title} integration selected`)}>
+            <button className="card metric clickable" key={integration.title} onClick={() => showToast(`${integration.title} integration selected`)}>
               <integration.icon size={22} color="#236c4a" />
               <div className="metric-value small-metric">{integration.title}</div>
               <div className="metric-label">{integration.detail}</div>
@@ -514,7 +627,7 @@ export default function Home() {
               </div>
               {filteredAnnouncements.length === 0 && <p className="meta">No announcements yet.</p>}
               {filteredAnnouncements.map((item) => (
-                <button className="row row-button" key={item.id} onClick={() => setToast(`${item.title} opened`)}>
+                <button className="row row-button" key={item.id} onClick={() => showToast(`${item.title} opened`)}>
                   <div>
                     <strong>{item.title}</strong>
                     <span className="meta">{item.content}</span>
@@ -560,7 +673,7 @@ export default function Home() {
               {isPrivileged && approvals.length === 0 && <p className="meta">Nothing waiting for approval.</p>}
               {isPrivileged && approvals.map((approval) => (
                 <div className="row" key={approval.id}>
-                  <button className="plain-row" onClick={() => setToast(`${approval.type} selected`)}>
+                  <button className="plain-row" onClick={() => showToast(`${approval.type} selected`)}>
                     <strong>{approval.type === "announcement" ? "Announcement" : approval.type}</strong>
                     <span className="meta">Submitted {new Date(approval.createdAt).toLocaleDateString()}</span>
                   </button>
@@ -584,7 +697,7 @@ export default function Home() {
             <div className="card-body list">
               {meetings.length === 0 && <p className="meta">No meetings scheduled.</p>}
               {meetings.map((meeting) => (
-                <button className="row row-button" key={meeting.id} onClick={() => setToast(`${meeting.title} attendance opened`)}>
+                <button className="row row-button" key={meeting.id} onClick={() => showToast(`${meeting.title} attendance opened`)}>
                   <div>
                     <strong>{meeting.title}</strong>
                     <span className="meta">{meeting.agenda}</span>
@@ -692,11 +805,11 @@ export default function Home() {
               <ShieldCheck size={20} color="#236c4a" />
             </div>
             <div className="card-body list">
-              <button className="row row-button" onClick={() => setToast("Board member management is coming soon")}>
-                <div><strong>Board members</strong><span className="meta">Add or remove board seats</span></div>
+              <button className="row row-button" onClick={openBoardPanel}>
+                <div><strong>Board members</strong><span className="meta">View the board and manage seats</span></div>
                 <span className="badge green">Admin</span>
               </button>
-              <button className="row row-button" onClick={() => setToast("Activity monitor is coming soon")}>
+              <button className="row row-button" onClick={openActivityPanel}>
                 <div><strong>Activity monitor</strong><span className="meta">Track announcements, rewards, meetings, and member additions</span></div>
                 <span className="badge blue">Live</span>
               </button>
@@ -706,8 +819,8 @@ export default function Home() {
       </section>
 
       {modal === "announcement" && isPrivileged && (
-        <div className="modal-backdrop" role="presentation">
-          <form className="modal" onSubmit={handleAnnouncementSubmit}>
+        <div className="modal-backdrop" role="presentation" onClick={() => setModal(null)}>
+          <form className="modal" onSubmit={handleAnnouncementSubmit} onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <h2>New Announcement</h2>
               <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close announcement form"><X size={16} /></button>
@@ -731,8 +844,8 @@ export default function Home() {
       )}
 
       {modal === "member" && (
-        <div className="modal-backdrop" role="presentation">
-          <form className="modal" onSubmit={handleMemberSubmit}>
+        <div className="modal-backdrop" role="presentation" onClick={() => setModal(null)}>
+          <form className="modal" onSubmit={handleMemberSubmit} onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <h2>Add Member</h2>
               <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close member form"><X size={16} /></button>
@@ -764,8 +877,8 @@ export default function Home() {
       )}
 
       {modal === "meeting" && isPrivileged && (
-        <div className="modal-backdrop" role="presentation">
-          <form className="modal" onSubmit={handleMeetingSubmit}>
+        <div className="modal-backdrop" role="presentation" onClick={() => setModal(null)}>
+          <form className="modal" onSubmit={handleMeetingSubmit} onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <h2>Schedule Meeting</h2>
               <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close meeting form"><X size={16} /></button>
@@ -777,6 +890,75 @@ export default function Home() {
             <label>Location (optional)<input name="location" placeholder="Club office" /></label>
             <label>Meeting link (optional)<input name="meetUrl" type="url" placeholder="https://" /></label>
             <button className="button primary" type="submit"><CalendarDays size={18} /> Schedule</button>
+          </form>
+        </div>
+      )}
+
+      {modal === "board" && isPrivileged && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setModal(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Board members" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Board Members</h2>
+              <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close board members"><X size={16} /></button>
+            </div>
+            <div className="card-body list panel-scroll">
+              {panelLoading && <p className="meta">Loading...</p>}
+              {!panelLoading && board.length === 0 && <p className="meta">No board members yet.</p>}
+              {!panelLoading && board.map((member) => (
+                <div className="row" key={member.id}>
+                  <div>
+                    <strong>{member.name}</strong>
+                    <span className="meta">{member.email}</span>
+                  </div>
+                  <div className="inline-actions">
+                    <span className={`badge ${member.isActive ? "green" : "red"}`}>{member.isActive ? "Active" : "Inactive"}</span>
+                    {authUser.role === "ADMIN" && member.id !== authUser.id && (
+                      <button className="button" type="button" onClick={() => toggleMemberActive(member)}>
+                        {member.isActive ? "Deactivate" : "Reactivate"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === "activity" && isPrivileged && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setModal(null)}>
+          <div className="modal" role="dialog" aria-modal="true" aria-label="Activity monitor" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2><ActivityIcon size={18} /> Activity Monitor</h2>
+              <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close activity monitor"><X size={16} /></button>
+            </div>
+            <div className="card-body list panel-scroll">
+              {panelLoading && <p className="meta">Loading...</p>}
+              {!panelLoading && activityFeed.length === 0 && <p className="meta">No activity yet.</p>}
+              {!panelLoading && activityFeed.map((entry) => (
+                <div className="row" key={entry.id}>
+                  <div>
+                    <strong>{describeActivity(entry)}</strong>
+                    <span className="meta">{new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal === "password" && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setModal(null)}>
+          <form className="modal" onSubmit={handlePasswordSubmit} onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2><KeyRound size={18} /> Change Password</h2>
+              <button className="icon-button" type="button" onClick={() => setModal(null)} aria-label="Close change password form"><X size={16} /></button>
+            </div>
+            <label>Current password<input name="currentPassword" required type="password" autoComplete="current-password" /></label>
+            <label>New password<input name="newPassword" required type="password" minLength={8} autoComplete="new-password" placeholder="At least 8 characters" /></label>
+            <label>Confirm new password<input name="confirmPassword" required type="password" minLength={8} autoComplete="new-password" /></label>
+            <button className="button primary" type="submit"><KeyRound size={18} /> Update password</button>
           </form>
         </div>
       )}

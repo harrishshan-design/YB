@@ -1,4 +1,5 @@
 import type {
+  ActivityEntry,
   Announcement,
   AnnouncementCategory,
   ApiUser,
@@ -51,6 +52,12 @@ export function clearSession() {
   window.localStorage.removeItem(USER_KEY);
 }
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function onUnauthorized(handler: () => void) {
+  unauthorizedHandler = handler;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getStoredToken();
   const response = await fetch(`${API_URL}${path}`, {
@@ -64,6 +71,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
+    if (response.status === 401 && path !== "/auth/login") {
+      unauthorizedHandler?.();
+    }
     throw new ApiError(typeof body.message === "string" ? body.message : `Request failed (${response.status})`, response.status);
   }
 
@@ -111,5 +121,15 @@ export const api = {
 
   leaderboard: () => request<LeaderboardEntry[]>("/rewards/leaderboard"),
 
-  messages: (channel: string) => request<BoardMessage[]>(`/messages?channel=${encodeURIComponent(channel)}`)
+  messages: (channel: string) => request<BoardMessage[]>(`/messages?channel=${encodeURIComponent(channel)}`),
+
+  board: () => request<ApiUser[]>("/board"),
+
+  updateMember: (id: string, data: { role?: Role; isActive?: boolean }) =>
+    request<ApiUser>(`/members/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  activity: () => request<ActivityEntry[]>("/activity"),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    request<{ message: string }>("/auth/password", { method: "PATCH", body: JSON.stringify(data) })
 };

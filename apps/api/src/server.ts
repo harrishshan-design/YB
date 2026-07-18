@@ -1,6 +1,7 @@
 import "dotenv/config";
+import { Prisma } from "@prisma/client";
 import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
@@ -67,6 +68,27 @@ app.post("/auth/login", loginLimiter, async (request, response) => {
 });
 
 app.use(requireAuth);
+
+app.patch("/auth/password", async (request, response) => {
+  const body = z.object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8)
+  }).parse(request.body);
+
+  const actor = request.user!;
+  const user = await db.user.findUniqueOrThrow({ where: { id: actor.id } });
+  const valid = await verifyPassword(body.currentPassword, user.passwordHash);
+
+  if (!valid) {
+    response.status(401).json({ message: "Current password is incorrect" });
+    return;
+  }
+
+  const passwordHash = await hashPassword(body.newPassword);
+  await db.user.update({ where: { id: actor.id }, data: { passwordHash } });
+
+  response.json({ message: "Password updated" });
+});
 
 app.get("/dashboard/summary", async (_request, response) => {
   const [members, board, pendingApprovals, announcements, meetings, leaderboard] = await Promise.all([
@@ -327,6 +349,59 @@ app.get("/messages", requireRole("ADMIN", "BOARD"), async (request, response) =>
   response.json(messages);
 });
 
+app.get("/board", requireRole("ADMIN", "BOARD"), async (_request, response) => {
+  const board = await db.user.findMany({
+    where: { role: "BOARD" },
+    orderBy: { name: "asc" },
+    select: userSelect
+  });
+
+  response.json(board);
+});
+
+app.patch("/members/:id", requireRole("ADMIN"), async (request, response) => {
+  const body = z.object({
+    role: z.enum(["ADMIN", "BOARD", "MEMBER"]).optional(),
+    isActive: z.boolean().optional()
+  }).refine((data) => data.role !== undefined || data.isActive !== undefined, {
+    message: "Provide at least one of role or isActive"
+  }).parse(request.body);
+
+  const actor = request.user!;
+  const targetId = String(request.params.id);
+
+  if (targetId === actor.id && (body.role !== undefined || body.isActive === false)) {
+    response.status(400).json({ message: "You cannot change your own role or deactivate your own account" });
+    return;
+  }
+
+  const updated = await db.user.update({
+    where: { id: targetId },
+    data: body,
+    select: userSelect
+  });
+
+  await db.activity.create({
+    data: {
+      userId: actor.id,
+      action: "member_updated",
+      metadata: { memberId: updated.id, memberName: updated.name, changes: body }
+    }
+  });
+
+  response.json(updated);
+});
+
+app.get("/activity", requireRole("ADMIN", "BOARD"), async (_request, response) => {
+  const activity = await db.activity.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    include: { user: { select: userSelect } }
+  });
+
+  response.json(activity);
+});
+
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
   const user = typeof token === "string" ? verifyToken(token) : null;
@@ -355,12 +430,47 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const message = await db.message.create({
-      data: { senderId: socket.data.user.id, channel: payload.channel, message: payload.message },
-      include: { sender: { select: userSelect } }
-    });
-    io.to(`board:${payload.channel}`).emit("board:message", message);
+    try {
+      const message = await db.message.create({
+        data: { senderId: socket.data.user.id, channel: payload.channel, message: payload.message },
+        include: { sender: { select: userSelect } }
+      });
+      io.to(`board:${payload.channel}`).emit("board:message", message);
+    } catch (error) {
+      console.error("board:message failed", error);
+      socket.emit("board:message:error", { message: "Could not send message" });
+    }
   });
+});
+
+app.use((_request, response) => {
+  response.status(404).json({ message: "Not found" });
+});
+
+app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
+  if (error instanceof z.ZodError) {
+    response.status(400).json({
+      message: error.issues[0]?.message ?? "Invalid request",
+      issues: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message }))
+    });
+    return;
+  }
+
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(", ") : "field";
+      response.status(409).json({ message: `A record with this ${target} already exists` });
+      return;
+    }
+
+    if (error.code === "P2025") {
+      response.status(404).json({ message: "Record not found" });
+      return;
+    }
+  }
+
+  console.error(error);
+  response.status(500).json({ message: "Something went wrong. Please try again." });
 });
 
 server.listen(port, () => {

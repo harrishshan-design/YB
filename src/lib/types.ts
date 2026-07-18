@@ -89,3 +89,11 @@ export type BoardMessage = {
   message: string;
   createdAt: string;
 };
+
+export type ActivityEntry = {
+  id: string;
+  action: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  user: ApiUser;
+};
