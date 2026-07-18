@@ -160,7 +160,15 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
+    let supabase;
+    try {
+      supabase = getSupabaseBrowserClient();
+    } catch (error) {
+      console.error(error);
+      setLoginError("Login is not configured correctly. Please contact the site admin.");
+      setAuthLoading(false);
+      return;
+    }
 
     supabase.auth.getSession().then(async ({ data }: { data: { session: Session | null } }) => {
       if (data.session) {
@@ -217,23 +225,28 @@ export default function HomePage() {
     setLoginError("");
     setLoginSubmitting(true);
 
-    const form = new FormData(event.currentTarget);
-    const email = String(form.get("email")).trim().toLowerCase();
-    const password = String(form.get("password"));
+    try {
+      const form = new FormData(event.currentTarget);
+      const email = String(form.get("email")).trim().toLowerCase();
+      const password = String(form.get("password"));
 
-    const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const supabase = getSupabaseBrowserClient();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      setLoginError("Wrong email or password.");
+      if (error) {
+        setLoginError("Wrong email or password.");
+        return;
+      }
+
+      await loadProfile();
+      setActiveView("home");
+      setNotice("Logged in.");
+    } catch (error) {
+      console.error(error);
+      setLoginError("Login is not configured correctly. Please contact the site admin.");
+    } finally {
       setLoginSubmitting(false);
-      return;
     }
-
-    await loadProfile();
-    setActiveView("home");
-    setNotice("Logged in.");
-    setLoginSubmitting(false);
   }
 
   async function signup(event: FormEvent<HTMLFormElement>) {
@@ -241,57 +254,63 @@ export default function HomePage() {
     setLoginError("");
     setLoginSubmitting(true);
 
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get("name")).trim();
-    const email = String(form.get("email")).trim().toLowerCase();
-    const password = String(form.get("password"));
-    const confirmPassword = String(form.get("confirmPassword"));
-
-    if (password !== confirmPassword) {
-      setLoginError("Passwords do not match.");
-      setLoginSubmitting(false);
-      return;
-    }
-
-    const supabase = getSupabaseBrowserClient();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name, role: selectedRole } }
-    });
-
-    if (error) {
-      setLoginError(error.message);
-      setLoginSubmitting(false);
-      return;
-    }
-
-    if (!data.session) {
-      setAuthMode("login");
-      setLoginError("");
-      setNotice("Account created. Please check your email, confirm it, then login. Do not press sign up again.");
-      setLoginSubmitting(false);
-      return;
-    }
-
     try {
-      const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile", {
-        method: "POST",
-        body: JSON.stringify({ name, role: selectedRole })
+      const form = new FormData(event.currentTarget);
+      const name = String(form.get("name")).trim();
+      const email = String(form.get("email")).trim().toLowerCase();
+      const password = String(form.get("password"));
+      const confirmPassword = String(form.get("confirmPassword"));
+
+      if (password !== confirmPassword) {
+        setLoginError("Passwords do not match.");
+        return;
+      }
+
+      const supabase = getSupabaseBrowserClient();
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name, role: selectedRole } }
       });
-      setCurrentUser(user);
-      setActiveView("home");
-      setNotice(`Signed up as ${roleLabels[user.role]}.`);
+
+      if (error) {
+        setLoginError(error.message);
+        return;
+      }
+
+      if (!data.session) {
+        setAuthMode("login");
+        setLoginError("");
+        setNotice("Account created. Please check your email, confirm it, then login. Do not press sign up again.");
+        return;
+      }
+
+      try {
+        const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile", {
+          method: "POST",
+          body: JSON.stringify({ name, role: selectedRole })
+        });
+        setCurrentUser(user);
+        setActiveView("home");
+        setNotice(`Signed up as ${roleLabels[user.role]}.`);
+      } catch (error) {
+        setLoginError(error instanceof ApiClientError ? error.message : "Signup worked, but profile setup needs email confirmation first.");
+      }
     } catch (error) {
-      setLoginError(error instanceof ApiClientError ? error.message : "Signup worked, but profile setup needs email confirmation first.");
+      console.error(error);
+      setLoginError("Sign up is not configured correctly. Please contact the site admin.");
     } finally {
       setLoginSubmitting(false);
     }
   }
 
   async function logout() {
-    const supabase = getSupabaseBrowserClient();
-    await supabase.auth.signOut();
+    try {
+      const supabase = getSupabaseBrowserClient();
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error(error);
+    }
     setCurrentUser(null);
     setActiveView("home");
     setNotice("Logged out safely.");
