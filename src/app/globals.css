@@ -80,6 +80,70 @@ a {
   font-size: 30px;
 }
 
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.auth-tabs button,
+.role-choice {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+  color: var(--foreground);
+  min-height: 58px;
+  padding: 14px;
+  font-weight: 800;
+}
+
+.auth-tabs button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-tabs button.active,
+.role-choice.active {
+  border-color: var(--green);
+  background: #dff1e7;
+  color: var(--green-dark);
+}
+
+.role-picker {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.role-picker legend {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.role-choice {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+}
+
+.role-choice span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .login-card label,
 .stack-form label {
   display: grid;

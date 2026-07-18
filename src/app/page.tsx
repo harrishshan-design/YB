@@ -15,6 +15,7 @@ import {
   Plus,
   ShieldCheck,
   Trophy,
+  UserCheck,
   UserPlus,
   Users,
   WalletCards
@@ -84,6 +85,8 @@ type DashboardSummary = {
   money: { approvedBudget: number; expensesPending: number; grantApplications: number };
 };
 
+const roles: Role[] = ["MEMBER", "PRESIDENT", "ADMIN", "MASTER"];
+
 const roleLabels: Record<Role, string> = {
   MEMBER: "Member",
   PRESIDENT: "President",
@@ -118,6 +121,8 @@ export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [activeView, setActiveView] = useState<View>("home");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [selectedRole, setSelectedRole] = useState<Role>("MEMBER");
   const [loginError, setLoginError] = useState("");
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [notice, setNotice] = useState("Welcome. Choose a task to begin.");
@@ -139,8 +144,11 @@ export default function HomePage() {
     try {
       const { user } = await apiFetch<{ user: AppUser }>("/api/me");
       setCurrentUser(user);
+      setActiveView("home");
+      return user;
     } catch {
       setCurrentUser(null);
+      return null;
     }
   }, []);
 
@@ -219,6 +227,51 @@ export default function HomePage() {
     setActiveView("home");
     setNotice("Logged in.");
     setLoginSubmitting(false);
+  }
+
+  async function signup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoginError("");
+    setLoginSubmitting(true);
+
+    const form = new FormData(event.currentTarget);
+    const name = String(form.get("name")).trim();
+    const email = String(form.get("email")).trim().toLowerCase();
+    const password = String(form.get("password"));
+    const confirmPassword = String(form.get("confirmPassword"));
+
+    if (password !== confirmPassword) {
+      setLoginError("Passwords do not match.");
+      setLoginSubmitting(false);
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name, role: selectedRole } }
+    });
+
+    if (error) {
+      setLoginError(error.message);
+      setLoginSubmitting(false);
+      return;
+    }
+
+    try {
+      const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile", {
+        method: "POST",
+        body: JSON.stringify({ name, role: selectedRole })
+      });
+      setCurrentUser(user);
+      setActiveView("home");
+      setNotice(`Signed up as ${roleLabels[user.role]}.`);
+    } catch (error) {
+      setLoginError(error instanceof ApiClientError ? error.message : "Signup worked, but profile setup needs email confirmation first.");
+    } finally {
+      setLoginSubmitting(false);
+    }
   }
 
   async function logout() {
@@ -315,20 +368,47 @@ export default function HomePage() {
         <section className="login-hero">
           <div>
             <p className="eyebrow">ybngo.my</p>
-            <h1>Login to continue.</h1>
-            <p className="lead">Simple, secure access for members, the president, admins, and the master account.</p>
+            <h1>{authMode === "login" ? "Login to continue." : "Create your account."}</h1>
+            <p className="lead">Choose your side once, then the system opens the correct dashboard automatically.</p>
           </div>
 
-          <form className="login-card" onSubmit={login}>
-            <div className="login-icon"><Lock size={28} /></div>
-            <h2>Sign in</h2>
-            <label>Email<input name="email" type="email" placeholder="member@demo.com" required /></label>
-            <label>Password<input name="password" type="password" required /></label>
-            {loginError && <p className="error-text">{loginError}</p>}
-            <button className="button primary" type="submit" disabled={loginSubmitting}>
-              {loginSubmitting ? "Signing in..." : "Login"}
-            </button>
-          </form>
+          <div className="login-card">
+            <div className="auth-tabs" role="tablist" aria-label="Account">
+              <button className={authMode === "login" ? "active" : ""} type="button" onClick={() => setAuthMode("login")}>
+                <Lock size={18} /> Login
+              </button>
+              <button className={authMode === "signup" ? "active" : ""} type="button" onClick={() => setAuthMode("signup")}>
+                <UserCheck size={18} /> Sign up
+              </button>
+            </div>
+
+            {authMode === "login" ? (
+              <form className="stack-form" onSubmit={login}>
+                <div className="login-icon"><Lock size={28} /></div>
+                <h2>Sign in</h2>
+                <label>Email<input name="email" type="email" placeholder="member@demo.com" required /></label>
+                <label>Password<input name="password" type="password" required /></label>
+                {loginError && <p className="error-text">{loginError}</p>}
+                <button className="button primary" type="submit" disabled={loginSubmitting}>
+                  {loginSubmitting ? "Signing in..." : "Login"}
+                </button>
+              </form>
+            ) : (
+              <form className="stack-form" onSubmit={signup}>
+                <div className="login-icon"><UserCheck size={28} /></div>
+                <h2>Sign up</h2>
+                <label>Full name<input name="name" placeholder="Your full name" required /></label>
+                <label>Email<input name="email" type="email" placeholder="you@example.com" required /></label>
+                <RolePicker selectedRole={selectedRole} setSelectedRole={setSelectedRole} />
+                <label>Password<input name="password" type="password" minLength={6} required /></label>
+                <label>Confirm password<input name="confirmPassword" type="password" minLength={6} required /></label>
+                {loginError && <p className="error-text">{loginError}</p>}
+                <button className="button primary" type="submit" disabled={loginSubmitting}>
+                  {loginSubmitting ? "Creating..." : `Create ${roleLabels[selectedRole]} dashboard`}
+                </button>
+              </form>
+            )}
+          </div>
         </section>
 
         <section className="demo-grid" aria-label="Demo accounts">
@@ -401,6 +481,35 @@ export default function HomePage() {
         {activeView === "admin" && <AdminView role={currentUser.role} approvals={approvals} decideApproval={decideApproval} />}
       </section>
     </main>
+  );
+}
+
+function RolePicker({
+  selectedRole,
+  setSelectedRole
+}: {
+  selectedRole: Role;
+  setSelectedRole: (role: Role) => void;
+}) {
+  return (
+    <fieldset className="role-picker">
+      <legend>Choose your side</legend>
+      <div className="role-grid">
+        {roles.map((role) => (
+          <button
+            className={`role-choice ${selectedRole === role ? "active" : ""}`}
+            key={role}
+            type="button"
+            onClick={() => setSelectedRole(role)}
+            aria-pressed={selectedRole === role}
+          >
+            <strong>{roleLabels[role]}</strong>
+            <span>{getSideTitle(role)}</span>
+          </button>
+        ))}
+      </div>
+      <input name="role" type="hidden" value={selectedRole} />
+    </fieldset>
   );
 }
 
