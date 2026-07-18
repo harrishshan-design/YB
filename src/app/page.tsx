@@ -39,15 +39,25 @@ export default function LoginPage() {
       const password = String(form.get("password"));
 
       const supabase = getSupabaseBrowserClient();
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         setLoginError("Wrong email or password.");
         return;
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      const user = await loadProfile();
+      let user: AppUser | null = null;
+      if (data.session?.access_token) {
+        const profile = await apiFetch<{ user: AppUser }>("/api/auth/profile", {
+          headers: { Authorization: `Bearer ${data.session.access_token}` }
+        });
+        user = profile.user;
+        setCurrentUser(user);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        user = await loadProfile();
+      }
+
       if (user) {
         router.replace(`/${roleSlugs[user.role]}`);
       } else {
@@ -100,6 +110,7 @@ export default function LoginPage() {
       try {
         const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile", {
           method: "POST",
+          headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
           body: JSON.stringify({ name, role: selectedRole })
         });
         setCurrentUser(user);
