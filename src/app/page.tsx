@@ -46,6 +46,7 @@ export default function LoginPage() {
         return;
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 250));
       const user = await loadProfile();
       if (user) {
         router.replace(`/${roleSlugs[user.role]}`);

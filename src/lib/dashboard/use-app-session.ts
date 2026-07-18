@@ -13,12 +13,12 @@ export function useAppSession() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const { user } = await apiFetch<{ user: AppUser }>("/api/me");
+      const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile");
       setCurrentUser(user);
       return user;
     } catch {
       try {
-        const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile");
+        const { user } = await apiFetch<{ user: AppUser }>("/api/me");
         setCurrentUser(user);
         return user;
       } catch {
