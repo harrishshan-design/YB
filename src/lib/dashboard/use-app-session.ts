@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { clearDemoUser, getStoredDemoUser } from "./demo-session";
 import type { AppUser } from "./types";
 
 export function useAppSession() {
@@ -29,6 +30,13 @@ export function useAppSession() {
   }, []);
 
   useEffect(() => {
+    const demoUser = getStoredDemoUser();
+    if (demoUser) {
+      setCurrentUser(demoUser);
+      setLoading(false);
+      return;
+    }
+
     let supabase;
     try {
       supabase = getSupabaseBrowserClient();
@@ -60,6 +68,7 @@ export function useAppSession() {
   }, [loadProfile]);
 
   const logout = useCallback(async () => {
+    clearDemoUser();
     try {
       const supabase = getSupabaseBrowserClient();
       await supabase.auth.signOut();

@@ -200,6 +200,16 @@ a {
   gap: 6px;
 }
 
+.demo-button {
+  width: 100%;
+}
+
+.demo-button:hover,
+.demo-button:focus-visible {
+  border-color: var(--green);
+  outline: 3px solid #dff1e7;
+}
+
 .demo-card strong {
   font-size: 20px;
 }

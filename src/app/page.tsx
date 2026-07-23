@@ -7,6 +7,7 @@ import { ApiClientError, apiFetch } from "@/lib/api-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAppSession } from "@/lib/dashboard/use-app-session";
 import { demoAccounts, getSideTitle, roleLabels, roleSlugs, roles } from "@/lib/dashboard/content";
+import { createDemoUser, storeDemoUser } from "@/lib/dashboard/demo-session";
 import type { AppUser, Role } from "@/lib/dashboard/types";
 
 export default function LoginPage() {
@@ -126,6 +127,13 @@ export default function LoginPage() {
     }
   }
 
+  function loginAsDemo(role: Role) {
+    const user = createDemoUser(role);
+    storeDemoUser(user);
+    setCurrentUser(user);
+    router.replace(`/${roleSlugs[role]}`);
+  }
+
   if (loading || currentUser) {
     return (
       <main className="login-page">
@@ -186,11 +194,11 @@ export default function LoginPage() {
 
       <section className="demo-grid" aria-label="Demo accounts">
         {demoAccounts.map((account) => (
-          <div className="demo-card" key={account.email}>
+          <button className="demo-card demo-button" key={account.email} type="button" onClick={() => loginAsDemo(account.role)}>
             <strong>{roleLabels[account.role]}</strong>
             <span>{account.email}</span>
-            <small>Password set up in Supabase Auth by the project admin.</small>
-          </div>
+            <small>Click to enter the {roleLabels[account.role]} demo dashboard.</small>
+          </button>
         ))}
       </section>
     </main>

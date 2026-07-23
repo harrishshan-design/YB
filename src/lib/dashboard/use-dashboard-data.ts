@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { ApiClientError, apiFetch } from "@/lib/api-client";
+import { isDemoUser } from "./demo-session";
 import type {
   Announcement,
   AppUser,
@@ -13,6 +14,48 @@ import type {
   Programme,
   View
 } from "./types";
+
+const demoSummary: DashboardSummary = {
+  members: 48,
+  pendingApprovals: 3,
+  openCases: 7,
+  openProgrammes: 5,
+  volunteerHours: 320,
+  money: { approvedBudget: 12500, expensesPending: 4, grantApplications: 2 }
+};
+
+const demoAnnouncements: Announcement[] = [
+  { id: "demo-news-1", title: "Food basket programme this Saturday", content: "Members can register and volunteer from 9 AM.", category: "EVENTS" },
+  { id: "demo-news-2", title: "Urgent: flood assistance list", content: "Please update affected families before 6 PM.", category: "URGENT" },
+  { id: "demo-news-3", title: "Youth skill workshop", content: "Free basic computer class seats are open.", category: "OPPORTUNITIES" }
+];
+
+const demoProgrammes: Programme[] = [
+  { id: "demo-programme-1", title: "Community Food Aid", description: "Pack and distribute essentials to families.", status: "ACTIVE" },
+  { id: "demo-programme-2", title: "Youth Volunteer Day", description: "Clean-up and registration support.", status: "ACTIVE" },
+  { id: "demo-programme-3", title: "Senior Help Desk", description: "Assist elderly citizens with forms.", status: "DRAFT" }
+];
+
+const demoCases: CaseItem[] = [
+  { id: "demo-case-1", title: "Need wheelchair support", status: "IN_REVIEW", assignedTo: { name: "Admin Demo" } },
+  { id: "demo-case-2", title: "Food assistance request", status: "OPEN", assignedTo: null }
+];
+
+const demoMembers: Member[] = [
+  { id: "demo-member-1", name: "Asha Kumar", points: 180, invitedBy: { name: "Member Demo" } },
+  { id: "demo-member-2", name: "Lim Wei", points: 150, invitedBy: { name: "Asha Kumar" } },
+  { id: "demo-member-3", name: "Nur Aina", points: 130, invitedBy: { name: "Member Demo" } }
+];
+
+const demoMeetings: Meeting[] = [
+  { id: "demo-meeting-1", title: "Committee planning meeting", startsAt: new Date(Date.now() + 86400000).toISOString() },
+  { id: "demo-meeting-2", title: "Monthly approval review", startsAt: new Date(Date.now() + 259200000).toISOString() }
+];
+
+const demoApprovals: Approval[] = [
+  { id: "demo-approval-1", type: "ANNOUNCEMENT", announcement: { title: "Emergency fund notice" }, event: null },
+  { id: "demo-approval-2", type: "EVENT", announcement: null, event: { title: "Youth Sports Day" } }
+];
 
 export function useDashboardData(currentUser: AppUser | null, activeView: View) {
   const [notice, setNotice] = useState("Welcome. Choose a task to begin.");
@@ -26,6 +69,18 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
 
   useEffect(() => {
     if (!currentUser) return;
+    if (isDemoUser(currentUser)) {
+      setSummary(demoSummary);
+      setAnnouncements(demoAnnouncements);
+      setProgrammes(demoProgrammes);
+      setCases(demoCases);
+      setMembers(demoMembers);
+      setMeetings(demoMeetings);
+      setApprovals(demoApprovals);
+      setNotice(`Demo mode: using the ${currentUser.role.toLowerCase()} side.`);
+      return;
+    }
+
     apiFetch<DashboardSummary>("/api/dashboard/summary")
       .then(setSummary)
       .catch(() => {});
@@ -33,6 +88,7 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
 
   useEffect(() => {
     if (!currentUser) return;
+    if (isDemoUser(currentUser)) return;
 
     if (activeView === "news") {
       apiFetch<Announcement[]>("/api/announcements").then(setAnnouncements).catch(() => {});
@@ -61,6 +117,13 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
     const description = String(form.get("details") ?? "").trim();
     if (!title) return;
 
+    if (isDemoUser(currentUser)) {
+      setCases((current) => [{ id: `demo-case-${Date.now()}`, title, status: "OPEN", assignedTo: null }, ...current]);
+      setNotice("Demo: your help request was submitted.");
+      event.currentTarget.reset();
+      return;
+    }
+
     try {
       const created = await apiFetch<CaseItem>("/api/cases", {
         method: "POST",
@@ -81,6 +144,17 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
     const email = String(form.get("email")).trim();
     const invitedById = String(form.get("invitedById") ?? "") || undefined;
     if (!name || !email) return;
+
+    if (isDemoUser(currentUser)) {
+      const inviter = invitedById ? members.find((member) => member.id === invitedById)?.name : currentUser?.name;
+      setMembers((current) => [
+        { id: `demo-member-${Date.now()}`, name, points: 0, invitedBy: inviter ? { name: inviter } : null },
+        ...current
+      ]);
+      setNotice(`Demo: ${name} was added.`);
+      event.currentTarget.reset();
+      return;
+    }
 
     try {
       const created = await apiFetch<Member>("/api/members", {
@@ -103,6 +177,13 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
     const category = String(form.get("category") ?? "EVENTS") as Announcement["category"];
     if (!title || !content) return;
 
+    if (isDemoUser(currentUser)) {
+      setAnnouncements((current) => [{ id: `demo-news-${Date.now()}`, title, content, category }, ...current]);
+      setNotice("Demo: announcement sent.");
+      event.currentTarget.reset();
+      return;
+    }
+
     try {
       const created = await apiFetch<Announcement>("/api/announcements", {
         method: "POST",
@@ -117,6 +198,12 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
   }
 
   async function decideApproval(id: string, status: "APPROVED" | "REJECTED") {
+    if (isDemoUser(currentUser)) {
+      setApprovals((current) => current.filter((item) => item.id !== id));
+      setNotice(status === "APPROVED" ? "Demo: approved." : "Demo: rejected.");
+      return;
+    }
+
     try {
       await apiFetch(`/api/approvals/${id}`, { method: "PATCH", body: JSON.stringify({ status }) });
       setApprovals((current) => current.filter((item) => item.id !== id));
