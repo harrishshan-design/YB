@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireRole, respondToError } from "@/lib/auth";
+import { ApiError, requireRole, respondToError } from "@/lib/auth";
 
 const createRewardSchema = z.object({
   userId: z.string(),
@@ -14,6 +14,14 @@ export async function POST(request: Request) {
   try {
     const requester = await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
     const body = createRewardSchema.parse(await request.json());
+
+    const recipient = await db.user.findUnique({ where: { id: body.userId } });
+    if (!recipient) {
+      throw new ApiError(404, "Member not found");
+    }
+    if (requester.role !== "MASTER" && recipient.organisationId !== requester.organisationId) {
+      throw new ApiError(404, "Member not found");
+    }
 
     const reward = await db.$transaction(async (tx) => {
       const created = await tx.reward.create({ data: body });

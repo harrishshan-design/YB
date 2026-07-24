@@ -42,6 +42,17 @@ export async function requireRole(roles: Role[]) {
   return user;
 }
 
+/**
+ * MASTER sees across every organisation; everyone else is scoped to their own.
+ * Spread the result into a Prisma `where` clause: `{ ...orgScope(user), ... }`.
+ * A non-MASTER user with no organisation (shouldn't normally happen) is scoped
+ * to a value that matches nothing, rather than accidentally returning everything.
+ */
+export function orgScope(user: { role: Role; organisationId: string | null }) {
+  if (user.role === "MASTER") return {};
+  return { organisationId: user.organisationId ?? "__none__" };
+}
+
 export function respondToError(error: unknown) {
   if (error instanceof ApiError) {
     return NextResponse.json({ message: error.message }, { status: error.status });

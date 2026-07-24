@@ -1,9 +1,11 @@
-import { FormEvent } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import {
   Bell,
   CalendarDays,
+  Check,
   CheckCircle2,
   ClipboardList,
+  Copy,
   FileText,
   HeartHandshake,
   Plus,
@@ -13,14 +15,18 @@ import {
   Users,
   WalletCards
 } from "lucide-react";
+import { ApiClientError, apiFetch } from "@/lib/api-client";
 import { roleLabels } from "@/lib/dashboard/content";
+import { isDemoUser } from "@/lib/dashboard/demo-session";
 import type {
   Announcement,
+  AppUser,
   Approval,
   CaseItem,
   DashboardSummary,
   Meeting,
   Member,
+  Organisation,
   Programme,
   Role,
   View
@@ -277,6 +283,77 @@ export function AdminView({
       <Panel title="System Setup">
         <div className="row"><strong>Your role</strong><span className="badge green">{roleLabels[role]}</span></div>
         <div className="row"><strong>Organisation profile</strong><span className="meta">Name, registration, committee, contact details.</span></div>
+      </Panel>
+    </section>
+  );
+}
+
+export function OrganizationView({ currentUser }: { currentUser: AppUser }) {
+  const [organisation, setOrganisation] = useState<Organisation | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (isDemoUser(currentUser)) {
+      setOrganisation({
+        id: "demo-org",
+        name: "Demo NGO",
+        description: "A sample organisation for exploring the President dashboard.",
+        inviteCode: "DEMO-ORG",
+        memberCount: 3
+      });
+      setLoading(false);
+      return;
+    }
+
+    apiFetch<Organisation>("/api/organisation")
+      .then(setOrganisation)
+      .catch((err) => setError(err instanceof ApiClientError ? err.message : "Could not load your organisation."))
+      .finally(() => setLoading(false));
+  }, [currentUser]);
+
+  if (loading) return <p className="meta">Loading...</p>;
+  if (error) return <p className="error-text">{error}</p>;
+  if (!organisation) return null;
+
+  const inviteLink = typeof window !== "undefined" ? `${window.location.origin}/join/${organisation.inviteCode}` : "";
+
+  function copyLink() {
+    if (isDemoUser(currentUser)) return;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <section className="dashboard-grid">
+      <Panel title={organisation.name}>
+        <div className="row">
+          <div>
+            <strong>Description</strong>
+            <span className="meta">{organisation.description || "No description yet."}</span>
+          </div>
+        </div>
+        <div className="row">
+          <div>
+            <strong>Members and Admins</strong>
+            <span className="meta">{organisation.memberCount} people in this organisation</span>
+          </div>
+        </div>
+      </Panel>
+      <Panel title="Invite link">
+        <p className="meta">
+          Share this link with people who should join {organisation.name}. Anyone who signs up through it becomes a
+          Member or Admin of your organisation only &mdash; they choose which when they sign up.
+        </p>
+        <div className="composer">
+          <input value={inviteLink} readOnly onFocus={(event) => event.currentTarget.select()} />
+          <button className="icon-button solid" type="button" onClick={copyLink} aria-label="Copy invite link">
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+          </button>
+        </div>
       </Panel>
     </section>
   );

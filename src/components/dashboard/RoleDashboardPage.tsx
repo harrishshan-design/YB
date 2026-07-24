@@ -15,6 +15,7 @@ import {
   MembersView,
   MoneyView,
   NewsView,
+  OrganizationView,
   ProgrammesView,
   ReportsView
 } from "./views";
@@ -87,6 +88,7 @@ export function RoleDashboardPage({ role }: { role: Role }) {
       {activeView === "money" && <MoneyView summary={data.summary} />}
       {activeView === "reports" && <ReportsView summary={data.summary} />}
       {activeView === "admin" && <AdminView role={currentUser.role} approvals={data.approvals} decideApproval={data.decideApproval} />}
+      {activeView === "organization" && <OrganizationView currentUser={currentUser} />}
     </DashboardShell>
   );
 }

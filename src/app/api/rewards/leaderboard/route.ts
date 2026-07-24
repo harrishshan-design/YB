@@ -4,14 +4,17 @@ import { requireUser, respondToError } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
-    await requireUser();
+    const requester = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const month = searchParams.get("month") ?? new Date().toISOString().slice(0, 7);
 
     const leaderboard = await db.reward.groupBy({
       by: ["userId"],
-      where: { month },
+      where: {
+        month,
+        ...(requester.role === "MASTER" ? {} : { user: { organisationId: requester.organisationId } })
+      },
       _sum: { points: true },
       orderBy: { _sum: { points: "desc" } },
       take: 10

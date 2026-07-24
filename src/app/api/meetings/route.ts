@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireRole, requireUser, respondToError } from "@/lib/auth";
+import { orgScope, requireRole, requireUser, respondToError } from "@/lib/auth";
 
 export async function GET() {
   try {
-    await requireUser();
+    const requester = await requireUser();
 
     const meetings = await db.meeting.findMany({
+      where: orgScope(requester),
       orderBy: { startsAt: "asc" },
       include: { attendance: { include: { user: true } } }
     });
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
         location: body.location,
         meetUrl: body.meetUrl,
         createdBy: requester.id,
+        organisationId: requester.organisationId,
         attendance: { create: body.invitedMemberIds.map((userId) => ({ userId, status: "INVITED" as const })) }
       },
       include: { attendance: true }

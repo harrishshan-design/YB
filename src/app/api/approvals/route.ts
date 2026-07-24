@@ -4,10 +4,13 @@ import { requireRole, respondToError } from "@/lib/auth";
 
 export async function GET() {
   try {
-    await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
+    const requester = await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
 
     const approvals = await db.approval.findMany({
-      where: { status: "PENDING" },
+      where: {
+        status: "PENDING",
+        ...(requester.role === "MASTER" ? {} : { announcement: { organisationId: requester.organisationId } })
+      },
       orderBy: { createdAt: "asc" },
       include: { announcement: true, event: true }
     });

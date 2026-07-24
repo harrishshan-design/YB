@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireUser, respondToError } from "@/lib/auth";
+import { orgScope, requireUser, respondToError } from "@/lib/auth";
 
 export async function GET() {
   try {
-    await requireUser();
+    const requester = await requireUser();
 
     const members = await db.user.findMany({
-      where: { role: "MEMBER" },
+      where: { role: "MEMBER", ...orgScope(requester) },
       orderBy: [{ points: "desc" }, { name: "asc" }],
       include: {
         invitedBy: true,
@@ -42,6 +42,7 @@ export async function POST(request: Request) {
         name: body.name,
         email: body.email,
         role: "MEMBER",
+        organisationId: requester.organisationId,
         invitedById,
         inviteCode: `YC-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
       },

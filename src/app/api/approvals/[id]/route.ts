@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireRole, respondToError } from "@/lib/auth";
+import { ApiError, requireRole, respondToError } from "@/lib/auth";
 
 const patchApprovalSchema = z.object({
   status: z.enum(["APPROVED", "REJECTED"]),
@@ -13,6 +13,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const requester = await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
     const { id } = await params;
     const body = patchApprovalSchema.parse(await request.json());
+
+    const existing = await db.approval.findUnique({ where: { id }, include: { announcement: true } });
+    if (!existing) {
+      throw new ApiError(404, "Approval not found");
+    }
+    if (requester.role !== "MASTER" && existing.announcement?.organisationId !== requester.organisationId) {
+      throw new ApiError(404, "Approval not found");
+    }
 
     const approval = await db.approval.update({
       where: { id },

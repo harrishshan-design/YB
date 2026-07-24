@@ -94,6 +94,8 @@ model User {
   joinedAt       DateTime            @default(now()) @map("joined_at")
   isActive       Boolean             @default(true)
   inviteCode     String?             @unique @map("invite_code")
+  organisationId String?             @map("organisation_id")
+  organisation   Organisation?       @relation("OrganisationMembers", fields: [organisationId], references: [id])
   invitedById    String?             @map("invited_by_id")
   invitedBy      User?               @relation("MemberCircle", fields: [invitedById], references: [id])
   invitedMembers User[]              @relation("MemberCircle")
@@ -250,12 +252,15 @@ model Activity {
 model Organisation {
   id          String      @id @default(cuid())
   name        String
+  description String?
+  inviteCode  String      @unique @map("invite_code")
   registrationNo String? @unique @map("registration_no")
   contactEmail String?   @map("contact_email")
   status      String      @default("ACTIVE")
   createdBy   String?     @map("created_by")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
+  users       User[]      @relation("OrganisationMembers")
   profile     OrganisationProfile?
   memberships OrganisationMembership[]
   committeePositions CommitteePosition[]
@@ -269,6 +274,7 @@ model Organisation {
   assistanceCases AssistanceCase[]
   agencyAccess AgencyOrganisationAccess[]
   documents   Document[]
+  caseComplaints CaseComplaint[]
 
   @@map("organisations")
 }
@@ -438,15 +444,17 @@ model VolunteerHour {
 }
 
 model CaseComplaint {
-  id           String     @id @default(cuid())
-  referenceNo  String     @unique @map("reference_no")
-  title        String
-  description  String
-  status       CaseStatus @default(OPEN)
-  assignedToId String?    @map("assigned_to_id")
-  assignedTo   User?      @relation("AssignedCaseOfficer", fields: [assignedToId], references: [id])
-  createdAt    DateTime   @default(now()) @map("created_at")
-  resolvedAt   DateTime?  @map("resolved_at")
+  id             String       @id @default(cuid())
+  referenceNo    String       @unique @map("reference_no")
+  organisationId String?      @map("organisation_id")
+  organisation   Organisation? @relation(fields: [organisationId], references: [id])
+  title          String
+  description    String
+  status         CaseStatus   @default(OPEN)
+  assignedToId   String?      @map("assigned_to_id")
+  assignedTo     User?        @relation("AssignedCaseOfficer", fields: [assignedToId], references: [id])
+  createdAt      DateTime     @default(now()) @map("created_at")
+  resolvedAt     DateTime?    @map("resolved_at")
 
   @@map("case_complaints")
 }

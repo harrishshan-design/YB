@@ -1,5 +1,5 @@
 export type Role = "MEMBER" | "PRESIDENT" | "ADMIN" | "MASTER";
-export type View = "home" | "news" | "programmes" | "help" | "members" | "meetings" | "money" | "reports" | "admin";
+export type View = "home" | "news" | "programmes" | "help" | "members" | "meetings" | "money" | "reports" | "admin" | "organization";
 
 export type AppUser = {
   id: string;
@@ -7,6 +7,14 @@ export type AppUser = {
   email: string;
   role: Role;
   points: number;
+};
+
+export type Organisation = {
+  id: string;
+  name: string;
+  description: string | null;
+  inviteCode: string;
+  memberCount: number;
 };
 
 export type Announcement = {

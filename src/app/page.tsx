@@ -6,7 +6,7 @@ import { Lock, UserCheck } from "lucide-react";
 import { ApiClientError, apiFetch } from "@/lib/api-client";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useAppSession } from "@/lib/dashboard/use-app-session";
-import { demoAccounts, getSideTitle, roleLabels, roleSlugs, roles } from "@/lib/dashboard/content";
+import { demoAccounts, roleLabels, roleSlugs } from "@/lib/dashboard/content";
 import { createDemoUser, storeDemoUser } from "@/lib/dashboard/demo-session";
 import type { AppUser, Role } from "@/lib/dashboard/types";
 
@@ -14,7 +14,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { currentUser, loading, configError, setCurrentUser, loadProfile } = useAppSession();
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [selectedRole, setSelectedRole] = useState<Role>("MEMBER");
   const [loginError, setLoginError] = useState("");
   const [notice, setNotice] = useState("");
   const [loginSubmitting, setLoginSubmitting] = useState(false);
@@ -80,6 +79,8 @@ export default function LoginPage() {
     try {
       const form = new FormData(event.currentTarget);
       const name = String(form.get("name")).trim();
+      const organisationName = String(form.get("organisationName")).trim();
+      const organisationDescription = String(form.get("organisationDescription") ?? "").trim();
       const email = String(form.get("email")).trim().toLowerCase();
       const password = String(form.get("password"));
       const confirmPassword = String(form.get("confirmPassword"));
@@ -89,11 +90,13 @@ export default function LoginPage() {
         return;
       }
 
+      const role: Role = "PRESIDENT";
+
       const supabase = getSupabaseBrowserClient();
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { name, role: selectedRole } }
+        options: { data: { name, role, organisationName, organisationDescription } }
       });
 
       if (error) {
@@ -112,12 +115,12 @@ export default function LoginPage() {
         const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile", {
           method: "POST",
           headers: data.session?.access_token ? { Authorization: `Bearer ${data.session.access_token}` } : undefined,
-          body: JSON.stringify({ name, role: selectedRole })
+          body: JSON.stringify({ name, role, organisationName, organisationDescription })
         });
         setCurrentUser(user);
         router.replace(`/${roleSlugs[user.role]}`);
       } catch (error) {
-        setLoginError(error instanceof ApiClientError ? error.message : "Signup worked, but profile setup needs email confirmation first.");
+        setLoginError(error instanceof ApiClientError ? error.message : "Signup worked, but organisation setup needs email confirmation first.");
       }
     } catch (error) {
       console.error(error);
@@ -147,8 +150,12 @@ export default function LoginPage() {
       <section className="login-hero">
         <div>
           <p className="eyebrow">ybngo.my</p>
-          <h1>{authMode === "login" ? "Login to continue." : "Create your account."}</h1>
-          <p className="lead">Choose your side once, then the system opens the correct dashboard automatically.</p>
+          <h1>{authMode === "login" ? "Login to continue." : "Register your NGO."}</h1>
+          <p className="lead">
+            {authMode === "login"
+              ? "Choose your side once, then the system opens the correct dashboard automatically."
+              : "Signing up here creates a new NGO and makes you its President. Members and Admins join later through the invite link on your dashboard — they don't sign up here."}
+          </p>
         </div>
 
         <div className="login-card">
@@ -157,7 +164,7 @@ export default function LoginPage() {
               <Lock size={18} /> Login
             </button>
             <button className={authMode === "signup" ? "active" : ""} type="button" onClick={() => setAuthMode("signup")}>
-              <UserCheck size={18} /> Sign up
+              <UserCheck size={18} /> Register NGO
             </button>
           </div>
 
@@ -177,15 +184,16 @@ export default function LoginPage() {
           ) : (
             <form className="stack-form" onSubmit={signup}>
               <div className="login-icon"><UserCheck size={28} /></div>
-              <h2>Sign up</h2>
-              <label>Full name<input name="name" placeholder="Your full name" required /></label>
+              <h2>Register your NGO</h2>
+              <label>Your full name<input name="name" placeholder="Your full name" required /></label>
+              <label>Organisation name<input name="organisationName" placeholder="e.g. HH Charity" required minLength={2} /></label>
+              <label>Organisation description (optional)<textarea name="organisationDescription" placeholder="What does your NGO do?" /></label>
               <label>Email<input name="email" type="email" placeholder="you@example.com" required /></label>
-              <RolePicker selectedRole={selectedRole} setSelectedRole={setSelectedRole} />
               <label>Password<input name="password" type="password" minLength={6} required /></label>
               <label>Confirm password<input name="confirmPassword" type="password" minLength={6} required /></label>
               {loginError && <p className="error-text">{loginError}</p>}
               <button className="button primary" type="submit" disabled={loginSubmitting}>
-                {loginSubmitting ? "Creating..." : `Create ${roleLabels[selectedRole]} dashboard`}
+                {loginSubmitting ? "Creating..." : `Create ${roleLabels.PRESIDENT} dashboard`}
               </button>
             </form>
           )}
@@ -202,34 +210,5 @@ export default function LoginPage() {
         ))}
       </section>
     </main>
-  );
-}
-
-function RolePicker({
-  selectedRole,
-  setSelectedRole
-}: {
-  selectedRole: Role;
-  setSelectedRole: (role: Role) => void;
-}) {
-  return (
-    <fieldset className="role-picker">
-      <legend>Choose your side</legend>
-      <div className="role-grid">
-        {roles.map((role) => (
-          <button
-            className={`role-choice ${selectedRole === role ? "active" : ""}`}
-            key={role}
-            type="button"
-            onClick={() => setSelectedRole(role)}
-            aria-pressed={selectedRole === role}
-          >
-            <strong>{roleLabels[role]}</strong>
-            <span>{getSideTitle(role)}</span>
-          </button>
-        ))}
-      </div>
-      <input name="role" type="hidden" value={selectedRole} />
-    </fieldset>
   );
 }

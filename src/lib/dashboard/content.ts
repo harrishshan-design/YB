@@ -1,5 +1,6 @@
 import {
   Bell,
+  Building2,
   CalendarDays,
   FileText,
   HeartHandshake,
@@ -43,7 +44,8 @@ export const allViews: Array<{ id: View; label: string; icon: React.ElementType;
   { id: "meetings", label: "Meetings", icon: MessageSquareText, roles: ["PRESIDENT", "ADMIN", "MASTER"] },
   { id: "money", label: "Money", icon: WalletCards, roles: ["PRESIDENT", "ADMIN", "MASTER"] },
   { id: "reports", label: "Reports", icon: FileText, roles: ["PRESIDENT", "ADMIN", "MASTER"] },
-  { id: "admin", label: "Settings", icon: ShieldCheck, roles: ["ADMIN", "MASTER"] }
+  { id: "admin", label: "Settings", icon: ShieldCheck, roles: ["ADMIN", "MASTER"] },
+  { id: "organization", label: "My Organization", icon: Building2, roles: ["PRESIDENT"] }
 ];
 
 export function canManage(role: Role) {
@@ -80,7 +82,8 @@ export function getViewTitle(view: View) {
     meetings: "Meetings and minutes",
     money: "Money and grants",
     reports: "Reports",
-    admin: "Settings and access"
+    admin: "Settings and access",
+    organization: "My Organization"
   };
   return titles[view];
 }
@@ -96,7 +99,8 @@ export function getViewDescription(view: View, role: Role) {
     meetings: "Schedule president and committee meetings, upload minutes, and track attendance.",
     money: "Manage budgets, expenses, donations, and grant applications.",
     reports: "See simple impact numbers for members, volunteers, money, and cases.",
-    admin: "Control login access, organisation settings, and audit records."
+    admin: "Control login access, organisation settings, and audit records.",
+    organization: "Share your invite link so Members and Admins can join your NGO."
   };
   return descriptions[view];
 }
