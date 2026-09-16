@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { orgScope, requireRole, requireUser, respondToError } from "@/lib/auth";
+import { requireRole, requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
 
     const announcements = await db.announcement.findMany({
-      where: orgScope(requester),
+      where: selectedOrgScope(organisationId),
       orderBy: { createdAt: "desc" },
       include: { createdBy: true, approval: true }
     });
@@ -29,6 +30,7 @@ const createAnnouncementSchema = z.object({
 export async function POST(request: Request) {
   try {
     const requester = await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
+    const organisationId = await resolveOrganisationId(requester, request);
     const body = createAnnouncementSchema.parse(await request.json());
 
     const announcement = await db.announcement.create({
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
         content: body.content,
         category: body.category,
         createdById: requester.id,
-        organisationId: requester.organisationId,
+        organisationId,
         publishedAt: body.publishNow ? new Date() : null,
         approval: { create: { type: "announcement", status: body.publishNow ? "APPROVED" : "PENDING" } }
       },

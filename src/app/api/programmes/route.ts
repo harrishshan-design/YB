@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { orgScope, requireUser, respondToError } from "@/lib/auth";
+import { requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
 
     const programmes = await db.programme.findMany({
-      where: orgScope(requester),
+      where: selectedOrgScope(organisationId),
       orderBy: { createdAt: "desc" },
       take: 20
     });

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { ApiClientError, apiFetch } from "@/lib/api-client";
 import { roleLabels } from "@/lib/dashboard/content";
-import { isDemoUser } from "@/lib/dashboard/demo-session";
+import { demoOrganisations, isDemoUser } from "@/lib/dashboard/demo-session";
 import type {
   Announcement,
   AppUser,
@@ -288,30 +288,27 @@ export function AdminView({
   );
 }
 
-export function OrganizationView({ currentUser }: { currentUser: AppUser }) {
+export function OrganizationView({ currentUser, organisationId }: { currentUser: AppUser; organisationId: string | null }) {
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setLoading(true);
+    setError("");
     if (isDemoUser(currentUser)) {
-      setOrganisation({
-        id: "demo-org",
-        name: "Demo NGO",
-        description: "A sample organisation for exploring the President dashboard.",
-        inviteCode: "DEMO-ORG",
-        memberCount: 3
-      });
+      setOrganisation(demoOrganisations.find((item) => item.id === organisationId) ?? demoOrganisations[0]);
       setLoading(false);
       return;
     }
 
-    apiFetch<Organisation>("/api/organisation")
+    const path = organisationId ? `/api/organisation?organisationId=${encodeURIComponent(organisationId)}` : "/api/organisation";
+    apiFetch<Organisation>(path)
       .then(setOrganisation)
       .catch((err) => setError(err instanceof ApiClientError ? err.message : "Could not load your organisation."))
       .finally(() => setLoading(false));
-  }, [currentUser]);
+  }, [currentUser, organisationId]);
 
   if (loading) return <p className="meta">Loading...</p>;
   if (error) return <p className="error-text">{error}</p>;
@@ -320,7 +317,6 @@ export function OrganizationView({ currentUser }: { currentUser: AppUser }) {
   const inviteLink = typeof window !== "undefined" ? `${window.location.origin}/join/${organisation.inviteCode}` : "";
 
   function copyLink() {
-    if (isDemoUser(currentUser)) return;
     navigator.clipboard.writeText(inviteLink).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -340,6 +336,12 @@ export function OrganizationView({ currentUser }: { currentUser: AppUser }) {
           <div>
             <strong>Members and Admins</strong>
             <span className="meta">{organisation.memberCount} people in this organisation</span>
+          </div>
+        </div>
+        <div className="row">
+          <div>
+            <strong>Club workspace</strong>
+            <span className="meta">News, members, meetings, cases, reports, and money are managed separately for this club.</span>
           </div>
         </div>
       </Panel>

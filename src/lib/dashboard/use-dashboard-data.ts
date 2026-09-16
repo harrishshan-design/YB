@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { ApiClientError, apiFetch } from "@/lib/api-client";
-import { isDemoUser } from "./demo-session";
+import { demoOrganisations, isDemoUser } from "./demo-session";
 import type {
   Announcement,
   AppUser,
@@ -15,49 +15,58 @@ import type {
   View
 } from "./types";
 
-const demoSummary: DashboardSummary = {
-  members: 48,
-  pendingApprovals: 3,
-  openCases: 7,
-  openProgrammes: 5,
-  volunteerHours: 320,
-  money: { approvedBudget: 12500, expensesPending: 4, grantApplications: 2 }
-};
+function demoSeed(organisationId: string | null) {
+  const organisation = demoOrganisations.find((item) => item.id === organisationId) ?? demoOrganisations[0];
+  const shortName = organisation.name;
 
-const demoAnnouncements: Announcement[] = [
-  { id: "demo-news-1", title: "Food basket programme this Saturday", content: "Members can register and volunteer from 9 AM.", category: "EVENTS" },
-  { id: "demo-news-2", title: "Urgent: flood assistance list", content: "Please update affected families before 6 PM.", category: "URGENT" },
-  { id: "demo-news-3", title: "Youth skill workshop", content: "Free basic computer class seats are open.", category: "OPPORTUNITIES" }
-];
+  return {
+    summary: {
+      members: organisation.memberCount,
+      pendingApprovals: shortName === "HH Charity" ? 3 : 1,
+      openCases: organisation.caseCount ?? 0,
+      openProgrammes: organisation.programmeCount ?? 0,
+      volunteerHours: shortName === "HH Charity" ? 320 : 145,
+      money: {
+        approvedBudget: shortName === "HH Charity" ? 12500 : 6800,
+        expensesPending: shortName === "HH Charity" ? 4 : 2,
+        grantApplications: shortName === "HH Charity" ? 2 : 1
+      }
+    },
+    announcements: [
+      { id: `${organisation.id}-news-1`, title: `${shortName} weekly update`, content: "Latest club news, volunteer tasks, and urgent notices.", category: "EVENTS" as const },
+      { id: `${organisation.id}-news-2`, title: "Urgent member check-in", content: "Please update member status before tonight.", category: "URGENT" as const }
+    ],
+    programmes: [
+      { id: `${organisation.id}-programme-1`, title: `${shortName} Food Aid`, description: "Pack and distribute essentials.", status: "ACTIVE" },
+      { id: `${organisation.id}-programme-2`, title: "Volunteer Day", description: "Community service and attendance points.", status: "ACTIVE" }
+    ],
+    cases: [
+      { id: `${organisation.id}-case-1`, title: "Assistance request", status: "OPEN", assignedTo: null },
+      { id: `${organisation.id}-case-2`, title: "Follow-up visit", status: "IN_REVIEW", assignedTo: { name: "Admin Demo" } }
+    ],
+    members: [
+      { id: `${organisation.id}-member-1`, name: "Asha Kumar", points: 180, invitedBy: { name: "President Demo" } },
+      { id: `${organisation.id}-member-2`, name: "Lim Wei", points: 150, invitedBy: { name: "Asha Kumar" } },
+      { id: `${organisation.id}-member-3`, name: "Nur Aina", points: 130, invitedBy: { name: "President Demo" } }
+    ],
+    meetings: [
+      { id: `${organisation.id}-meeting-1`, title: `${shortName} committee meeting`, startsAt: new Date(Date.now() + 86400000).toISOString() },
+      { id: `${organisation.id}-meeting-2`, title: "Monthly approval review", startsAt: new Date(Date.now() + 259200000).toISOString() }
+    ],
+    approvals: [
+      { id: `${organisation.id}-approval-1`, type: "ANNOUNCEMENT", announcement: { title: `${shortName} public notice` }, event: null },
+      { id: `${organisation.id}-approval-2`, type: "EVENT", announcement: null, event: { title: "Volunteer campaign" } }
+    ]
+  };
+}
 
-const demoProgrammes: Programme[] = [
-  { id: "demo-programme-1", title: "Community Food Aid", description: "Pack and distribute essentials to families.", status: "ACTIVE" },
-  { id: "demo-programme-2", title: "Youth Volunteer Day", description: "Clean-up and registration support.", status: "ACTIVE" },
-  { id: "demo-programme-3", title: "Senior Help Desk", description: "Assist elderly citizens with forms.", status: "DRAFT" }
-];
+function scopedPath(path: string, organisationId: string | null) {
+  if (!organisationId) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}organisationId=${encodeURIComponent(organisationId)}`;
+}
 
-const demoCases: CaseItem[] = [
-  { id: "demo-case-1", title: "Need wheelchair support", status: "IN_REVIEW", assignedTo: { name: "Admin Demo" } },
-  { id: "demo-case-2", title: "Food assistance request", status: "OPEN", assignedTo: null }
-];
-
-const demoMembers: Member[] = [
-  { id: "demo-member-1", name: "Asha Kumar", points: 180, invitedBy: { name: "Member Demo" } },
-  { id: "demo-member-2", name: "Lim Wei", points: 150, invitedBy: { name: "Asha Kumar" } },
-  { id: "demo-member-3", name: "Nur Aina", points: 130, invitedBy: { name: "Member Demo" } }
-];
-
-const demoMeetings: Meeting[] = [
-  { id: "demo-meeting-1", title: "Committee planning meeting", startsAt: new Date(Date.now() + 86400000).toISOString() },
-  { id: "demo-meeting-2", title: "Monthly approval review", startsAt: new Date(Date.now() + 259200000).toISOString() }
-];
-
-const demoApprovals: Approval[] = [
-  { id: "demo-approval-1", type: "ANNOUNCEMENT", announcement: { title: "Emergency fund notice" }, event: null },
-  { id: "demo-approval-2", type: "EVENT", announcement: null, event: { title: "Youth Sports Day" } }
-];
-
-export function useDashboardData(currentUser: AppUser | null, activeView: View) {
+export function useDashboardData(currentUser: AppUser | null, activeView: View, organisationId: string | null) {
   const [notice, setNotice] = useState("Welcome. Choose a task to begin.");
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -69,46 +78,47 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
 
   useEffect(() => {
     if (!currentUser) return;
-    if (isDemoUser(currentUser)) {
-      setSummary(demoSummary);
-      setAnnouncements(demoAnnouncements);
-      setProgrammes(demoProgrammes);
-      setCases(demoCases);
-      setMembers(demoMembers);
-      setMeetings(demoMeetings);
-      setApprovals(demoApprovals);
-      setNotice(`Demo mode: using the ${currentUser.role.toLowerCase()} side.`);
+    if (currentUser && isDemoUser(currentUser)) {
+      const seed = demoSeed(organisationId);
+      setSummary(seed.summary);
+      setAnnouncements(seed.announcements);
+      setProgrammes(seed.programmes);
+      setCases(seed.cases);
+      setMembers(seed.members);
+      setMeetings(seed.meetings);
+      setApprovals(seed.approvals);
+      setNotice(`Demo mode: managing ${demoOrganisations.find((item) => item.id === organisationId)?.name ?? "a club"}.`);
       return;
     }
 
-    apiFetch<DashboardSummary>("/api/dashboard/summary")
+    apiFetch<DashboardSummary>(scopedPath("/api/dashboard/summary", organisationId))
       .then(setSummary)
       .catch(() => {});
-  }, [currentUser]);
+  }, [currentUser, organisationId]);
 
   useEffect(() => {
     if (!currentUser) return;
     if (isDemoUser(currentUser)) return;
 
     if (activeView === "news") {
-      apiFetch<Announcement[]>("/api/announcements").then(setAnnouncements).catch(() => {});
+      apiFetch<Announcement[]>(scopedPath("/api/announcements", organisationId)).then(setAnnouncements).catch(() => {});
     }
     if (activeView === "programmes") {
-      apiFetch<Programme[]>("/api/programmes").then(setProgrammes).catch(() => {});
+      apiFetch<Programme[]>(scopedPath("/api/programmes", organisationId)).then(setProgrammes).catch(() => {});
     }
     if (activeView === "help") {
-      apiFetch<CaseItem[]>("/api/cases").then(setCases).catch(() => {});
+      apiFetch<CaseItem[]>(scopedPath("/api/cases", organisationId)).then(setCases).catch(() => {});
     }
     if (activeView === "members") {
-      apiFetch<Member[]>("/api/members").then(setMembers).catch(() => {});
+      apiFetch<Member[]>(scopedPath("/api/members", organisationId)).then(setMembers).catch(() => {});
     }
     if (activeView === "meetings") {
-      apiFetch<Meeting[]>("/api/meetings").then(setMeetings).catch(() => {});
+      apiFetch<Meeting[]>(scopedPath("/api/meetings", organisationId)).then(setMeetings).catch(() => {});
     }
     if (activeView === "admin" && (currentUser.role === "ADMIN" || currentUser.role === "MASTER")) {
-      apiFetch<Approval[]>("/api/approvals").then(setApprovals).catch(() => {});
+      apiFetch<Approval[]>(scopedPath("/api/approvals", organisationId)).then(setApprovals).catch(() => {});
     }
-  }, [activeView, currentUser]);
+  }, [activeView, currentUser, organisationId]);
 
   async function submitCase(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,15 +127,15 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
     const description = String(form.get("details") ?? "").trim();
     if (!title) return;
 
-    if (isDemoUser(currentUser)) {
+    if (currentUser && isDemoUser(currentUser)) {
       setCases((current) => [{ id: `demo-case-${Date.now()}`, title, status: "OPEN", assignedTo: null }, ...current]);
-      setNotice("Demo: your help request was submitted.");
+      setNotice("Demo: help case submitted inside this club.");
       event.currentTarget.reset();
       return;
     }
 
     try {
-      const created = await apiFetch<CaseItem>("/api/cases", {
+      const created = await apiFetch<CaseItem>(scopedPath("/api/cases", organisationId), {
         method: "POST",
         body: JSON.stringify({ title, description })
       });
@@ -146,18 +156,16 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
     if (!name || !email) return;
 
     if (isDemoUser(currentUser)) {
-      const inviter = invitedById ? members.find((member) => member.id === invitedById)?.name : currentUser?.name;
-      setMembers((current) => [
-        { id: `demo-member-${Date.now()}`, name, points: 0, invitedBy: inviter ? { name: inviter } : null },
-        ...current
-      ]);
-      setNotice(`Demo: ${name} was added.`);
+      const demoUser = currentUser as AppUser;
+      const inviter = invitedById ? members.find((member) => member.id === invitedById)?.name : demoUser.name;
+      setMembers((current) => [{ id: `demo-member-${Date.now()}`, name, points: 0, invitedBy: inviter ? { name: inviter } : null }, ...current]);
+      setNotice(`Demo: ${name} was added to this club.`);
       event.currentTarget.reset();
       return;
     }
 
     try {
-      const created = await apiFetch<Member>("/api/members", {
+      const created = await apiFetch<Member>(scopedPath("/api/members", organisationId), {
         method: "POST",
         body: JSON.stringify({ name, email, invitedById })
       });
@@ -179,13 +187,13 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
 
     if (isDemoUser(currentUser)) {
       setAnnouncements((current) => [{ id: `demo-news-${Date.now()}`, title, content, category }, ...current]);
-      setNotice("Demo: announcement sent.");
+      setNotice("Demo: announcement sent inside this club.");
       event.currentTarget.reset();
       return;
     }
 
     try {
-      const created = await apiFetch<Announcement>("/api/announcements", {
+      const created = await apiFetch<Announcement>(scopedPath("/api/announcements", organisationId), {
         method: "POST",
         body: JSON.stringify({ title, content, category, publishNow: true })
       });
@@ -200,7 +208,7 @@ export function useDashboardData(currentUser: AppUser | null, activeView: View) 
   async function decideApproval(id: string, status: "APPROVED" | "REJECTED") {
     if (isDemoUser(currentUser)) {
       setApprovals((current) => current.filter((item) => item.id !== id));
-      setNotice(status === "APPROVED" ? "Demo: approved." : "Demo: rejected.");
+      setNotice(status === "APPROVED" ? "Demo: approved for this club." : "Demo: rejected for this club.");
       return;
     }
 

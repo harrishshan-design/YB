@@ -232,6 +232,18 @@ a {
   color: #b7c9bd;
 }
 
+.sidebar-select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: #18382b;
+  color: white;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
 .stack-form {
   display: grid;
   gap: 16px;

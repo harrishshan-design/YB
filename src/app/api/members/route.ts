@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { orgScope, requireUser, respondToError } from "@/lib/auth";
+import { requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
 
     const members = await db.user.findMany({
-      where: { role: "MEMBER", ...orgScope(requester) },
+      where: { role: "MEMBER", ...selectedOrgScope(organisationId) },
       orderBy: [{ points: "desc" }, { name: "asc" }],
       include: {
         invitedBy: true,
@@ -32,6 +33,7 @@ const createMemberSchema = z.object({
 export async function POST(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
     const body = createMemberSchema.parse(await request.json());
 
     const canPlaceAnywhere = requester.role === "ADMIN" || requester.role === "MASTER" || requester.role === "PRESIDENT";
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
         name: body.name,
         email: body.email,
         role: "MEMBER",
-        organisationId: requester.organisationId,
+        organisationId,
         invitedById,
         inviteCode: `YC-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
       },

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { orgScope, requireUser, respondToError } from "@/lib/auth";
+import { requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireUser();
-    const scope = orgScope(requester);
-    const approvalScope = requester.role === "MASTER" ? {} : { announcement: { organisationId: requester.organisationId } };
-    const volunteerScope = requester.role === "MASTER" ? {} : { volunteer: { user: { organisationId: requester.organisationId } } };
+    const organisationId = await resolveOrganisationId(requester, request);
+    const scope = selectedOrgScope(organisationId);
+    const approvalScope = { announcement: scope };
+    const volunteerScope = { volunteer: { user: scope } };
 
     const [
       members,

@@ -3,7 +3,7 @@
 import { LogOut } from "lucide-react";
 import { roleLabels } from "@/lib/dashboard/content";
 import { getViewDescription, getViewTitle } from "@/lib/dashboard/content";
-import type { AppUser, View } from "@/lib/dashboard/types";
+import type { AppUser, Organisation, View } from "@/lib/dashboard/types";
 
 export function DashboardShell({
   user,
@@ -11,6 +11,9 @@ export function DashboardShell({
   activeView,
   setActiveView,
   notice,
+  organisations,
+  activeOrganisationId,
+  setActiveOrganisationId,
   logout,
   children
 }: {
@@ -19,9 +22,14 @@ export function DashboardShell({
   activeView: View;
   setActiveView: (view: View) => void;
   notice: string;
+  organisations: Organisation[];
+  activeOrganisationId: string | null;
+  setActiveOrganisationId: (id: string) => void;
   logout: () => void;
   children: React.ReactNode;
 }) {
+  const activeOrganisation = organisations.find((organisation) => organisation.id === activeOrganisationId);
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -36,6 +44,19 @@ export function DashboardShell({
         <div className="user-panel">
           <strong>{user.name}</strong>
           <span>{roleLabels[user.role]}</span>
+        </div>
+
+        <div className="user-panel">
+          <span>Active club</span>
+          {organisations.length > 1 ? (
+            <select className="sidebar-select" value={activeOrganisationId ?? ""} onChange={(event) => setActiveOrganisationId(event.target.value)}>
+              {organisations.map((organisation) => (
+                <option key={organisation.id} value={organisation.id}>{organisation.name}</option>
+              ))}
+            </select>
+          ) : (
+            <strong>{activeOrganisation?.name ?? "No club selected"}</strong>
+          )}
         </div>
 
         <nav className="nav" aria-label="Primary">
@@ -57,7 +78,7 @@ export function DashboardShell({
         <div className="topbar">
           <div>
             <p className="eyebrow">{roleLabels[user.role]} dashboard</p>
-            <h1>{getViewTitle(activeView)}</h1>
+            <h1>{activeOrganisation ? `${activeOrganisation.name}: ${getViewTitle(activeView)}` : getViewTitle(activeView)}</h1>
             <p className="lead">{getViewDescription(activeView, user.role)}</p>
           </div>
         </div>

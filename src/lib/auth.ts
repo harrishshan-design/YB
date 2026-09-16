@@ -53,6 +53,36 @@ export function orgScope(user: { role: Role; organisationId: string | null }) {
   return { organisationId: user.organisationId ?? "__none__" };
 }
 
+export async function resolveOrganisationId(user: { id: string; role: Role; organisationId: string | null }, request: Request) {
+  const requestedId = new URL(request.url).searchParams.get("organisationId");
+
+  if (!requestedId) {
+    return user.organisationId;
+  }
+
+  if (user.role === "MASTER") {
+    return requestedId;
+  }
+
+  const membership = await db.organisationMembership.findFirst({
+    where: {
+      userId: user.id,
+      organisationId: requestedId,
+      status: "ACTIVE"
+    }
+  });
+
+  if (membership || requestedId === user.organisationId) {
+    return requestedId;
+  }
+
+  throw new ApiError(403, "You do not have access to this club");
+}
+
+export function selectedOrgScope(organisationId: string | null) {
+  return { organisationId: organisationId ?? "__none__" };
+}
+
 export function respondToError(error: unknown) {
   if (error instanceof ApiError) {
     return NextResponse.json({ message: error.message }, { status: error.status });

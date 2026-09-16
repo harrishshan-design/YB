@@ -7,6 +7,7 @@ export type AppUser = {
   email: string;
   role: Role;
   points: number;
+  organisationId?: string | null;
 };
 
 export type Organisation = {
@@ -15,6 +16,8 @@ export type Organisation = {
   description: string | null;
   inviteCode: string;
   memberCount: number;
+  programmeCount?: number;
+  caseCount?: number;
 };
 
 export type Announcement = {

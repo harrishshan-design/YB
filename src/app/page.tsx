@@ -174,7 +174,7 @@ export default function LoginPage() {
             <form className="stack-form" onSubmit={login}>
               <div className="login-icon"><Lock size={28} /></div>
               <h2>Sign in</h2>
-              <label>Email<input name="email" type="email" placeholder="member@demo.com" required /></label>
+              <label>Email<input name="email" type="email" placeholder="you@example.com" required /></label>
               <label>Password<input name="password" type="password" required /></label>
               {loginError && <p className="error-text">{loginError}</p>}
               <button className="button primary" type="submit" disabled={loginSubmitting}>
@@ -205,7 +205,7 @@ export default function LoginPage() {
           <button className="demo-card demo-button" key={account.email} type="button" onClick={() => loginAsDemo(account.role)}>
             <strong>{roleLabels[account.role]}</strong>
             <span>{account.email}</span>
-            <small>Click to enter the {roleLabels[account.role]} demo dashboard.</small>
+            <small>Click to enter the {roleLabels[account.role]} demo dashboard with sample clubs.</small>
           </button>
         ))}
       </section>

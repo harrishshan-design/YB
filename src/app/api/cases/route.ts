@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { orgScope, requireUser, respondToError } from "@/lib/auth";
+import { requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
 
     const cases = await db.caseComplaint.findMany({
-      where: orgScope(requester),
+      where: selectedOrgScope(organisationId),
       orderBy: { createdAt: "desc" },
       include: { assignedTo: true }
     });
@@ -27,6 +28,7 @@ const createCaseSchema = z.object({
 export async function POST(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
     const body = createCaseSchema.parse(await request.json());
 
     const created = await db.caseComplaint.create({
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
         referenceNo: `CASE-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         title: body.title,
         description: body.description ?? "",
-        organisationId: requester.organisationId,
+        organisationId,
         assignedToId: requester.id
       },
       include: { assignedTo: true }

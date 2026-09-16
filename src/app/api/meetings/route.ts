@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { orgScope, requireRole, requireUser, respondToError } from "@/lib/auth";
+import { requireRole, requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireUser();
+    const organisationId = await resolveOrganisationId(requester, request);
 
     const meetings = await db.meeting.findMany({
-      where: orgScope(requester),
+      where: selectedOrgScope(organisationId),
       orderBy: { startsAt: "asc" },
       include: { attendance: { include: { user: true } } }
     });
@@ -32,6 +33,7 @@ const createMeetingSchema = z.object({
 export async function POST(request: Request) {
   try {
     const requester = await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
+    const organisationId = await resolveOrganisationId(requester, request);
     const body = createMeetingSchema.parse(await request.json());
 
     const meeting = await db.meeting.create({
@@ -43,7 +45,7 @@ export async function POST(request: Request) {
         location: body.location,
         meetUrl: body.meetUrl,
         createdBy: requester.id,
-        organisationId: requester.organisationId,
+        organisationId,
         attendance: { create: body.invitedMemberIds.map((userId) => ({ userId, status: "INVITED" as const })) }
       },
       include: { attendance: true }

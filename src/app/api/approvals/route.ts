@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireRole, respondToError } from "@/lib/auth";
+import { requireRole, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const requester = await requireRole(["PRESIDENT", "ADMIN", "MASTER"]);
+    const organisationId = await resolveOrganisationId(requester, request);
+    const scope = selectedOrgScope(organisationId);
 
     const approvals = await db.approval.findMany({
       where: {
         status: "PENDING",
-        ...(requester.role === "MASTER" ? {} : { announcement: { organisationId: requester.organisationId } })
+        announcement: scope
       },
       orderBy: { createdAt: "asc" },
       include: { announcement: true, event: true }
