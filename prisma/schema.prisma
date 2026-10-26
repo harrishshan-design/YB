@@ -60,6 +60,7 @@ enum OrganisationRole {
   COMMITTEE
   MEMBER
   VOLUNTEER
+  PROGRAMME_MANAGER
 }
 
 enum AccessLevel {
@@ -253,6 +254,9 @@ model Organisation {
   id          String      @id @default(cuid())
   name        String
   description String?
+  parentId String? @map("parent_id")
+  parent Organisation? @relation("ClubBranches", fields: [parentId], references: [id])
+  branches Organisation[] @relation("ClubBranches")
   inviteCode  String      @unique @map("invite_code")
   registrationNo String? @unique @map("registration_no")
   contactEmail String?   @map("contact_email")
@@ -304,6 +308,9 @@ model OrganisationMembership {
   organisation   Organisation     @relation(fields: [organisationId], references: [id])
   user           User             @relation(fields: [userId], references: [id])
   role           OrganisationRole @default(MEMBER)
+  number         String?
+  category       String           @default("Ordinary Member")
+  expiresAt      DateTime?        @map("expires_at")
   status         String           @default("ACTIVE")
   createdBy      String?          @map("created_by")
   createdAt      DateTime         @default(now()) @map("created_at")
@@ -336,6 +343,9 @@ model Programme {
   organisation Organisation   @relation(fields: [organisationId], references: [id])
   title       String
   description String
+  location    String              @default("")
+  capacity    Int                 @default(60)
+  details     Json?
   status      ProgrammeStatus @default(DRAFT)
   startsAt    DateTime?       @map("starts_at")
   endsAt      DateTime?       @map("ends_at")
@@ -390,10 +400,12 @@ model AttendanceRecord {
   user        User      @relation(fields: [userId], references: [id])
   status      String    @default("PRESENT")
   checkedInAt DateTime? @map("checked_in_at")
+  checkedOutAt DateTime? @map("checked_out_at")
   createdBy   String?   @map("created_by")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  @@unique([programmeId, userId])
   @@map("attendance_records")
 }
 
@@ -616,6 +628,7 @@ model Document {
   storageKey  String   @unique @map("storage_key")
   fileName    String   @map("file_name")
   contentType String   @map("content_type")
+  size        Int      @default(0)
   status      String   @default("ACTIVE")
   createdBy   String?  @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
@@ -659,6 +672,14 @@ model Subscription {
   organisationId String?  @map("organisation_id")
   user           User?    @relation(fields: [userId], references: [id])
   plan           String
+  billingCycle   String   @default("monthly") @map("billing_cycle")
+  providerCustomerId String? @map("provider_customer_id")
+  providerSubscriptionId String? @unique @map("provider_subscription_id")
+  currentPeriodStart DateTime? @map("current_period_start")
+  currentPeriodEnd DateTime? @map("current_period_end")
+  trialEnd       DateTime? @map("trial_end")
+  cancelAtPeriodEnd Boolean @default(false) @map("cancel_at_period_end")
+  graceEndsAt DateTime? @map("grace_ends_at")
   status         String   @default("ACTIVE")
   startedAt      DateTime @default(now()) @map("started_at")
   expiresAt      DateTime? @map("expires_at")
@@ -667,4 +688,10 @@ model Subscription {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("subscriptions")
+}
+
+model PaymentEvent {
+  id String @id
+  createdAt DateTime @default(now()) @map("created_at")
+  @@map("payment_events")
 }

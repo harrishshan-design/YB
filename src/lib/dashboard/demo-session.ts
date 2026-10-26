@@ -15,7 +15,7 @@ export const demoOrganisations: Organisation[] = [
   },
   {
     id: "demo-youth-club",
-    name: "Youth Club",
+    name: "Kelab Belia Kita",
     description: "Youth leadership, events, volunteer hours, and rewards.",
     inviteCode: "ORG-YOUTH",
     memberCount: 32,
@@ -27,7 +27,7 @@ export const demoOrganisations: Organisation[] = [
 export function createDemoUser(role: Role): AppUser {
   return {
     id: `demo-${role.toLowerCase()}`,
-    name: `${roleLabels[role]} Demo`,
+    name: "Aisha Rahman",
     email: `${role.toLowerCase()}@demo.com`,
     role,
     points: role === "MEMBER" ? 120 : 0,

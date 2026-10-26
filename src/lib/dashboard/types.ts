@@ -8,6 +8,7 @@ export type AppUser = {
   role: Role;
   points: number;
   organisationId?: string | null;
+  workspaceRole?: import("@/lib/product/types").WorkspaceRole;
 };
 
 export type Organisation = {
