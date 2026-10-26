@@ -18,16 +18,20 @@ This release replaces the login-first site with a public product website and a c
 
 ## Deployment prerequisites
 
-The configured local database could not be reached during this work. The connected Supabase account did not list the YBNGO project. No remote schema or customer records were changed, and live signup, private storage and paid checkout were not tested against the production account.
+Infrastructure verified on 26 October 2026: the new Supabase project `phncdbisuzlgauxhdqwg` has all 37 application tables, with RLS enabled and no direct `anon`/`authenticated` table grants. The schema and access restrictions were applied together in one transaction after confirming the database was empty. Both session and transaction poolers were checked. The private `documents` bucket allows signed downloads and rejects public downloads.
 
-1. Restore `DATABASE_URL` for the correct YBNGO database and verify access from the deployment host.
-2. Apply the reviewed Prisma migration in `prisma/migrations/202610260001_product_workspaces/migration.sql` before releasing the new server. It adds columns and indexes, backfills existing primary memberships, and protects application tables from direct Data API access. If duplicate legacy attendance exists, the migration stops for review rather than deleting NGO records.
+Real backend checks passed for owner login, workspace provisioning, member applications/approval, member privacy, denied role escalation, cross-club isolation, signed public cards and private document upload/download. Temporary QA records, files and sessions were removed. Confirmation-link redirects were verified against `https://ybngo.my`. Email delivery and paid checkout still need production-account testing.
+
+The old HH CHARITY project remains paused and untouched. Historical accounts and organisation data have not been migrated into the new project. New accounts start in the new project.
+
+1. Keep `DATABASE_URL` and the Supabase Auth/Storage keys pointed at the same new project. Vercel runtime connections use the verified transaction pooler with `pgbouncer=true` and a bounded connection limit; migration tools use the session pooler.
+2. The new project is already initialised. For another existing database, review `prisma/migrations/202610260001_product_workspaces/migration.sql` before releasing the server. It adds columns and indexes, backfills existing primary memberships, and protects application tables from direct Data API access. If duplicate legacy attendance exists, it stops for review rather than deleting NGO records.
 3. Configure Supabase Auth redirect allowlists for `/auth/callback` on the actual domain and local preview. Use a transactional SMTP provider for production confirmation emails.
 4. Create a **private** Supabase Storage bucket named by `SUPABASE_STORAGE_BUCKET`. The application authorises each upload and download and uses short-lived signed download links. The server needs its Supabase secret key; it is never sent to clients.
 5. Set `YBNGO_SIGNING_SECRET` to a random server-only secret of at least 32 bytes. This signs attendance and membership verification URLs.
 6. Configure Stripe keys, the customer billing portal and webhook endpoint `/api/billing/webhook`. Subscribe to subscription-created/updated/deleted, checkout-completed, invoice-paid and invoice-payment-failed events. Verify a test payment, renewal, cancellation and failed payment before accepting real subscriptions.
 
-For an existing database without Prisma migration history, use the project's Prisma 6 CLI after reviewing the SQL:
+For another existing database without Prisma migration history, use the project's Prisma 6 CLI after reviewing the SQL. Export the intended `DATABASE_URL` first: Prisma CLI does not automatically load Next.js `.env.local` overrides. Do not accidentally target the legacy `.env` database.
 
 ```sh
 npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/202610260001_product_workspaces/migration.sql

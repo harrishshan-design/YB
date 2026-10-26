@@ -41,7 +41,9 @@ Allow `/auth/callback` on the intended origins in Supabase Auth. Configure a tra
 
 Read [docs/RELEASE.md](docs/RELEASE.md) before deployment. This release needs a schema migration before the new server accesses an existing database. It preserves existing primary-club memberships, adds capacity/billing fields and blocks direct browser access to application tables. It does not delete duplicate attendance; it stops for review if duplicates exist.
 
-The local database was unreachable during implementation. No remote schema or customer data was modified. Restore that connection and test live registration, storage and payments before merging the release into the production branch.
+The new Supabase project was initialised on 26 October 2026. Real backend checks passed for owner/member login, workspace provisioning, approvals, club isolation, signed membership verification and private file access. Temporary test accounts and records were removed. The old HH CHARITY project remains untouched; its historical records have not been copied into the new project.
+
+Local overrides are in Git-ignored `.env.local`. Verify the deployed environment, confirmation emails and payment account before treating the service as fully operational. See the release checklist for the remaining integrations.
 
 ## Verification
 
