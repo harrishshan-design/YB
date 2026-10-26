@@ -1,17 +1,28 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireUser, resolveOrganisationId, respondToError, selectedOrgScope } from "@/lib/auth";
+import {
+  requireUser,
+  resolveOrganisationId,
+  respondToError,
+  selectedOrgScope,
+} from "@/lib/auth";
+import { workspaceContext } from "@/lib/product/server";
+import { canManage } from "@/lib/product/types";
 
 export async function GET(request: Request) {
   try {
-    const requester = await requireUser();
-    const organisationId = await resolveOrganisationId(requester, request);
+    const context = await workspaceContext(request);
+    const requester = context.user;
+    const organisationId = context.organisationId;
 
     const cases = await db.caseComplaint.findMany({
-      where: selectedOrgScope(organisationId),
+      where: {
+        ...selectedOrgScope(organisationId),
+        ...(!canManage(context.role) ? { assignedToId: requester.id } : {}),
+      },
       orderBy: { createdAt: "desc" },
-      include: { assignedTo: true }
+      include: { assignedTo: { select: { name: true } } },
     });
 
     return NextResponse.json(cases);
@@ -22,7 +33,7 @@ export async function GET(request: Request) {
 
 const createCaseSchema = z.object({
   title: z.string().min(3),
-  description: z.string().optional()
+  description: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -37,9 +48,9 @@ export async function POST(request: Request) {
         title: body.title,
         description: body.description ?? "",
         organisationId,
-        assignedToId: requester.id
+        assignedToId: requester.id,
       },
-      include: { assignedTo: true }
+      include: { assignedTo: true },
     });
 
     return NextResponse.json(created, { status: 201 });

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { ApiError, requireUser, resolveOrganisationId, respondToError } from "@/lib/auth";
+import {
+  ApiError,
+  requireUser,
+  resolveOrganisationId,
+  respondToError,
+} from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
@@ -13,7 +18,7 @@ export async function GET(request: Request) {
 
     const organisation = await db.organisation.findUnique({
       where: { id: organisationId },
-      include: { _count: { select: { users: true } } }
+      include: { _count: { select: { users: true } } },
     });
 
     if (!organisation) {
@@ -25,7 +30,7 @@ export async function GET(request: Request) {
       name: organisation.name,
       description: organisation.description,
       inviteCode: organisation.inviteCode,
-      memberCount: organisation._count.users
+      memberCount: organisation._count.users,
     });
   } catch (error) {
     return respondToError(error);

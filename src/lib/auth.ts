@@ -1,6 +1,8 @@
 import type { Role } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { ZodError } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -16,7 +18,8 @@ export class ApiError extends Error {
 /** Resolves the caller's Supabase session to the matching app profile row, or throws 401. */
 export async function requireUser() {
   const supabase = await getSupabaseServerClient();
-  const { data, error } = await supabase.auth.getUser();
+  const bearer = (await headers()).get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+  const { data, error } = await supabase.auth.getUser(bearer || undefined);
 
   if (error || !data.user) {
     throw new ApiError(401, "Not logged in");
@@ -84,12 +87,18 @@ export function selectedOrgScope(organisationId: string | null) {
 }
 
 export function respondToError(error: unknown) {
+  if (error instanceof Prisma.PrismaClientInitializationError) {
+    return NextResponse.json({message:"You are signed in, but the organisation database is unavailable. Please contact support."},{status:503});
+  }
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    return NextResponse.json({message:"This record already exists in your organisation."},{status:409});
+  }
   if (error instanceof ApiError) {
     return NextResponse.json({ message: error.message }, { status: error.status });
   }
 
   if (error instanceof ZodError) {
-    return NextResponse.json({ message: "Invalid request", issues: error.issues }, { status: 400 });
+    return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid request", issues: error.issues }, { status: 400 });
   }
 
   console.error(error);

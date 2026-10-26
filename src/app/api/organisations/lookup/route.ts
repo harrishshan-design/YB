@@ -10,16 +10,22 @@ export async function GET(request: Request) {
     const code = searchParams.get("code")?.trim();
 
     if (!code) {
-      return NextResponse.json({ message: "Missing invite code" }, { status: 400 });
+      return NextResponse.json(
+        { message: "Missing invite code" },
+        { status: 400 },
+      );
     }
 
     const organisation = await db.organisation.findUnique({
       where: { inviteCode: code },
-      select: { name: true, status: true }
+      select: { name: true, status: true },
     });
 
     if (!organisation || organisation.status !== "ACTIVE") {
-      return NextResponse.json({ message: "This invite link is invalid or has expired" }, { status: 404 });
+      return NextResponse.json(
+        { message: "This invite link is invalid or has expired" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json({ name: organisation.name });

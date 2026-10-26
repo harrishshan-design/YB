@@ -11,15 +11,36 @@ export async function GET() {
         ? await db.organisation.findMany({
             where: { status: "ACTIVE" },
             orderBy: { name: "asc" },
-            include: { _count: { select: { users: true, programmes: true, assistanceCases: true } } }
+            include: {
+              _count: {
+                select: {
+                  users: true,
+                  programmes: true,
+                  assistanceCases: true,
+                },
+              },
+            },
           })
         : await db.organisation.findMany({
             where: {
               status: "ACTIVE",
-              OR: [{ id: user.organisationId ?? "__none__" }, { memberships: { some: { userId: user.id, status: "ACTIVE" } } }]
+              OR: [
+                { id: user.organisationId ?? "__none__" },
+                {
+                  memberships: { some: { userId: user.id, status: "ACTIVE" } },
+                },
+              ],
             },
             orderBy: { name: "asc" },
-            include: { _count: { select: { users: true, programmes: true, assistanceCases: true } } }
+            include: {
+              _count: {
+                select: {
+                  users: true,
+                  programmes: true,
+                  assistanceCases: true,
+                },
+              },
+            },
           });
 
     return NextResponse.json(
@@ -30,8 +51,8 @@ export async function GET() {
         inviteCode: organisation.inviteCode,
         memberCount: organisation._count.users,
         programmeCount: organisation._count.programmes,
-        caseCount: organisation._count.assistanceCases
-      }))
+        caseCount: organisation._count.assistanceCases,
+      })),
     );
   } catch (error) {
     return respondToError(error);

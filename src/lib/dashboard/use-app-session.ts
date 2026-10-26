@@ -14,7 +14,9 @@ export function useAppSession() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile");
+      const supabase = getSupabaseBrowserClient();
+      const { data } = await supabase.auth.getSession();
+      const { user } = await apiFetch<{ user: AppUser }>("/api/auth/profile", { headers: data.session ? { Authorization: `Bearer ${data.session.access_token}` } : undefined });
       setCurrentUser(user);
       return user;
     } catch {
@@ -52,13 +54,13 @@ export function useAppSession() {
         await loadProfile();
       }
       setLoading(false);
-    });
+    }).catch(() => { setConfigError("We couldn't load your session. Please log in again."); setLoading(false); });
 
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       if (session) {
-        loadProfile();
+        setTimeout(() => { void loadProfile(); }, 0);
       } else {
         setCurrentUser(null);
       }
